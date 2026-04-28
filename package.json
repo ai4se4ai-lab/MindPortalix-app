@@ -6,6 +6,7 @@
   "private": true,
   "scripts": {
     "start": "node src/server/index.js",
+    "stop": "node -e \"const{execSync}=require('child_process');try{execSync('npx kill-port 3000',{stdio:'ignore'})}catch{}\"",
     "dev": "node --watch src/server/index.js",
     "test": "node --test",
     "test:agents": "node --test tests/agents",

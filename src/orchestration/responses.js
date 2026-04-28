@@ -104,27 +104,46 @@ export async function streamOpenRouter({ model, messages, onChunk }) {
   }
 
   let fullContent = "";
+  const reader = response.body.getReader();
   const decoder = new TextDecoder();
+  let buf = "";
 
-  for await (const chunk of response.body) {
-    const text = decoder.decode(chunk, { stream: true });
-    const lines = text.split("\n").filter((line) => line.startsWith("data: "));
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-    for (const line of lines) {
-      const data = line.slice(6).trim();
-      if (data === "[DONE]") continue;
+      buf += decoder.decode(value, { stream: true });
+      // Keep the last (possibly incomplete) line in the buffer
+      const lines = buf.split("\n");
+      buf = lines.pop() ?? "";
 
-      try {
-        const parsed = JSON.parse(data);
-        const delta = parsed.choices?.[0]?.delta?.content ?? "";
-        if (delta) {
-          fullContent += delta;
-          onChunk(delta);
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const data = line.slice(6).trim();
+        if (data === "[DONE]") continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content ?? "";
+          if (delta) {
+            fullContent += delta;
+            onChunk(delta);
+          }
+        } catch {
+          // skip malformed SSE chunks
         }
-      } catch {
-        // skip malformed SSE chunks
       }
     }
+  } finally {
+    reader.releaseLock();
+  }
+
+  // Fallback: if streaming returned nothing, try a regular non-streaming call
+  if (!fullContent) {
+    const result = await callOpenRouter({ model, messages });
+    fullContent = result.choices?.[0]?.message?.content ?? "";
+    if (fullContent) onChunk(fullContent);
   }
 
   return fullContent;
