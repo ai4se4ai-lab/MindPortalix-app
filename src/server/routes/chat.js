@@ -85,6 +85,8 @@ router.post("/", requireAuth, async (req, res) => {
       send("agent_start", { agent: agentId });
       const result = await runSpecialistAgent({ agentId, input: message, memories });
       specialistResults.push(result);
+      const detail = buildAgentDetail(result);
+      send("agent_detail", detail);
       send("agent_done", { agent: agentId, model: result.model });
 
       // Immediately forward media results so the client can render them
@@ -110,11 +112,17 @@ router.post("/", requireAuth, async (req, res) => {
     if (!isMediaOnly) {
       // Split thinking / chain-of-thought from the actual answer
       const { thinking, answer } = parseContent(finalContent);
-      if (thinking) send("thinking", { thinking });
+      if (thinking) send("thinking", { hidden: true });
       const displayContent = answer || finalContent;
 
       review = reviewDraft({ draft: displayContent, route });
-      send("review", { score: review.score, passed: review.passed, confidence: review.confidence });
+      send("review", {
+        score: review.score,
+        passed: review.passed,
+        confidence: review.confidence,
+        threshold: review.threshold,
+        issues: review.issues
+      });
 
       // Stream the clean answer word-by-word for typewriter UX
       await streamWords(displayContent, word => send("delta", { delta: word }));
@@ -184,3 +192,15 @@ function streamWords(text, onWord) {
 }
 
 export default router;
+
+function buildAgentDetail(result) {
+  const { thinking, answer } = parseContent(result.content);
+  return {
+    agent: result.agent,
+    model: result.model,
+    output: answer || result.content,
+    hiddenReasoning: Boolean(thinking),
+    mediaType: result.mediaType ?? null,
+    error: result.error ?? null
+  };
+}

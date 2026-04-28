@@ -290,6 +290,50 @@
     line-height: 1.5; resize: none; min-height: 22px; max-height: 160px; overflow-y: auto;
   }
   .input-box textarea::placeholder { color: var(--text3); }
+  .attachment-tray,
+  .message-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .attachment-tray {
+    margin-bottom: 8px;
+  }
+  .message-attachments {
+    margin: 4px 0 8px;
+  }
+  .attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg2);
+    padding: 6px 9px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .attachment-name {
+    color: var(--accent);
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attachment-size { color: var(--text3); }
+  .attachment-remove {
+    border: none;
+    background: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 1px;
+  }
+  .attachment-remove:hover { color: #f87171; }
   .send-btn {
     width: 34px; height: 34px; min-width: 34px;
     background: var(--accent); border: none; border-radius: 7px;
@@ -325,16 +369,17 @@
   .splash-dot:nth-child(2) { animation-delay: 0.2s; }
   .splash-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  /* ── Thinking block (collapsible chain-of-thought) ───────────── */
-  .thinking-block {
+  /* ── Collaboration trace (collapsible reasoning summary) ───────────── */
+  .thinking-block,
+  .collab-panel {
     margin-bottom: 10px;
     border: 1px solid var(--border);
     border-radius: 8px;
     overflow: hidden;
   }
-  .thinking-block summary {
+  .thinking-block summary,
+  .collab-summary {
     padding: 7px 12px;
-    cursor: pointer;
     font-family: var(--mono);
     font-size: 10px;
     letter-spacing: 0.08em;
@@ -347,14 +392,18 @@
     user-select: none;
     transition: color 0.15s;
   }
+  .thinking-block summary { cursor: pointer; }
   .thinking-block summary::-webkit-details-marker { display: none; }
-  .thinking-block summary:hover { color: var(--text2); }
-  .thinking-block summary .think-arrow {
+  .thinking-block summary:hover,
+  .collab-summary:hover { color: var(--text2); }
+  .thinking-block summary .think-arrow,
+  .collab-summary .think-arrow {
     font-size: 7px;
     transition: transform 0.2s;
     display: inline-block;
   }
-  .thinking-block[open] summary .think-arrow { transform: rotate(90deg); }
+  .thinking-block[open] summary .think-arrow,
+  .collab-panel.open .collab-summary .think-arrow { transform: rotate(90deg); }
   .thinking-content {
     padding: 10px 14px 12px;
     font-family: var(--mono);
@@ -365,6 +414,95 @@
     border-top: 1px solid var(--border);
     background: var(--bg2);
     max-height: 240px;
+    overflow-y: auto;
+  }
+  .collab-summary-state {
+    margin-left: auto;
+    color: var(--accent);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .collab-details-button {
+    border: 1px solid rgba(163,230,53,0.28);
+    border-radius: 999px;
+    padding: 2px 7px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .collab-details-button:hover {
+    border-color: rgba(163,230,53,0.55);
+    background: rgba(163,230,53,0.18);
+  }
+  .collab-body {
+    border-top: 1px solid var(--border);
+    background: var(--bg2);
+    padding: 10px 12px 12px;
+  }
+  .collab-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .collab-step {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+  }
+  .collab-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-top: 6px;
+    background: var(--text3);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.02);
+  }
+  .collab-step.running .collab-dot {
+    background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .collab-step.done .collab-dot { background: var(--accent); opacity: 0.8; }
+  .collab-step.error .collab-dot { background: #f87171; }
+  .collab-main { min-width: 0; }
+  .collab-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+  .collab-detail {
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.45;
+    margin-top: 1px;
+  }
+  .collab-meta {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    white-space: nowrap;
+    padding-top: 1px;
+  }
+  .collab-output {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    background: rgba(0,0,0,0.16);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    max-height: 220px;
     overflow-y: auto;
   }
 
@@ -533,6 +671,83 @@ function renderMarkdown(content) {
   }
 }
 
+function formatAgentName(agent) {
+  if (!agent) return "Agent";
+  return agent
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function buildRouteSteps(agents = [], primary) {
+  const routed = agents.filter(Boolean);
+  return [
+    {
+      id: "route",
+      title: "Route selected",
+      detail: routed.length
+        ? `Primary: ${formatAgentName(primary)}. Collaborators: ${routed.map(formatAgentName).join(", ")}.`
+        : "The request is being routed to the best available specialist.",
+      status: "done"
+    },
+    ...routed
+      .filter(agent => agent !== "reviewer")
+      .map(agent => ({
+        id: `agent:${agent}`,
+        agent,
+        title: formatAgentName(agent),
+        detail: agent === primary ? "Primary specialist preparing the answer." : "Supporting specialist contributing context.",
+        status: "pending"
+      }))
+  ];
+}
+
+function upsertCollabStep(steps, nextStep) {
+  const index = steps.findIndex(step => step.id === nextStep.id);
+  if (index === -1) return [...steps, nextStep];
+  return steps.map((step, i) => i === index ? { ...step, ...nextStep } : step);
+}
+
+function buildAgentDetailText(ev) {
+  const parts = [];
+  if (ev.mediaType) parts.push(`Media: ${ev.mediaType}`);
+  if (ev.hiddenReasoning) parts.push("Hidden reasoning removed from visible output");
+  if (ev.error) parts.push(`Error: ${ev.error}`);
+  return parts.length ? parts.join(" · ") : "Visible agent output captured.";
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function createTextAttachment(content, name = "Pasted text") {
+  return {
+    id: `att_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    name,
+    content,
+    size: content.length
+  };
+}
+
+function buildMessageWithAttachments(text, attachments) {
+  const prompt = text.trim() || "Please review the attached text.";
+  if (!attachments.length) return prompt;
+
+  const attachmentBlocks = attachments.map((attachment, index) =>
+    [
+      `Attachment ${index + 1}: ${attachment.name}`,
+      "```text",
+      attachment.content,
+      "```"
+    ].join("\n")
+  );
+
+  return [prompt, "Attached text files:", ...attachmentBlocks].join("\n\n");
+}
+
 // ── Icons ─────────────────────────────────────────────────────────────
 function SendIcon() {
   return (
@@ -644,6 +859,55 @@ function AuthScreen({ onAuth }) {
 }
 
 // ── Message component ─────────────────────────────────────────────────
+function CollaborationPanel({ steps = [], isStreaming }) {
+  const [isOpen, setIsOpen] = useState(isStreaming);
+
+  useEffect(() => {
+    setIsOpen(isStreaming);
+  }, [isStreaming]);
+
+  if (!steps.length) return null;
+
+  const running = steps.find(step => step.status === "running");
+  const summaryState = isStreaming
+    ? (running ? `Running: ${running.title}` : "Working")
+    : "Final ready";
+
+  return (
+    <div className={`collab-panel ${isOpen ? "open" : ""}`}>
+      <div className="collab-summary">
+        <span className="think-arrow">▶</span>
+        Agent collaboration
+        <span className="collab-summary-state">{summaryState}</span>
+        <button
+          className="collab-details-button"
+          type="button"
+          onClick={() => setIsOpen(open => !open)}
+        >
+          {isOpen ? "Hide details" : "Details"}
+        </button>
+      </div>
+      {isOpen && (
+        <div className="collab-body">
+        <div className="collab-list">
+          {steps.map(step => (
+            <div key={step.id} className={`collab-step ${step.status ?? "pending"}`}>
+              <span className="collab-dot"></span>
+              <div className="collab-main">
+                <div className="collab-title">{step.title}</div>
+                {step.detail && <div className="collab-detail">{step.detail}</div>}
+                {step.output && <div className="collab-output">{step.output}</div>}
+              </div>
+              <div className="collab-meta">{step.meta ?? step.status}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      )}
+    </div>
+  );
+}
+
 function Message({ msg, isStreaming, activeAgent }) {
   const [copied, setCopied] = useState(false);
 
@@ -659,6 +923,8 @@ function Message({ msg, isStreaming, activeAgent }) {
   const hasThinking = !isUser && msg.thinking;
   const hasModelPlan = !isUser && msg.modelPlan && msg.modelPlan.length > 0;
   const hasMedia = !isUser && msg.media && msg.media.length > 0;
+  const hasCollabSteps = !isUser && msg.collaborationSteps && msg.collaborationSteps.length > 0;
+  const hasAttachments = msg.attachments && msg.attachments.length > 0;
 
   return (
     <div className="msg-group">
@@ -714,14 +980,32 @@ function Message({ msg, isStreaming, activeAgent }) {
         </div>
       )}
 
-      {/* Collapsible chain-of-thought */}
+      {hasAttachments && (
+        <div className="message-attachments">
+          {msg.attachments.map(item => (
+            <div key={item.id} className="attachment-chip">
+              <span>Attached</span>
+              <span className="attachment-name">{item.name}</span>
+              <span className="attachment-size">{formatBytes(item.size)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasCollabSteps && (
+        <CollaborationPanel steps={msg.collaborationSteps} isStreaming={isStreaming} />
+      )}
+
+      {/* Collapsible reasoning note */}
       {hasThinking && (
         <details className="thinking-block">
           <summary>
             <span className="think-arrow">▶</span>
-            Chain of thought
+            Reasoning note
           </summary>
-          <div className="thinking-content">{msg.thinking}</div>
+          <div className="thinking-content">
+            The model supplied private reasoning internally. MindPortalix hides that raw trace and shows the final answer plus the collaboration summary above.
+          </div>
         </details>
       )}
 
@@ -802,6 +1086,7 @@ function ChatScreen({ session, onLogout }) {
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
   const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState([]);
   const [sending, setSending] = useState(false);
   const [streamingId, setStreamingId] = useState(null);
   const [activeAgent, setActiveAgent] = useState(null);
@@ -850,6 +1135,7 @@ function ChatScreen({ session, onLogout }) {
   async function newConversation() {
     setActiveConvId(null);
     setMessages([]);
+    setAttachments([]);
   }
 
   async function deleteConversation(id) {
@@ -864,6 +1150,7 @@ function ChatScreen({ session, onLogout }) {
     setConversations(c => c.filter(x => x.id !== activeConvId));
     setActiveConvId(null);
     setMessages([]);
+    setAttachments([]);
   }
 
   async function handleLogout() {
@@ -884,10 +1171,39 @@ function ChatScreen({ session, onLogout }) {
     }
   }
 
+  async function handlePaste(e) {
+    const clipboard = e.clipboardData;
+    const pastedText = clipboard?.getData("text/plain") ?? "";
+
+    if (pastedText.length > 500) {
+      e.preventDefault();
+      setAttachments(prev => [...prev, createTextAttachment(pastedText)]);
+      return;
+    }
+
+    const files = Array.from(clipboard?.files ?? []);
+    const textFiles = files.filter(file => file.type.startsWith("text/") || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|html|css)$/i.test(file.name));
+    if (!textFiles.length) return;
+
+    e.preventDefault();
+    const nextAttachments = await Promise.all(textFiles.map(async file => (
+      createTextAttachment(await file.text(), file.name || "Pasted file")
+    )));
+    setAttachments(prev => [...prev, ...nextAttachments]);
+  }
+
+  function removeAttachment(id) {
+    setAttachments(prev => prev.filter(item => item.id !== id));
+  }
+
   async function sendMessage() {
     const text = input.trim();
-    if (!text || sending) return;
+    if ((!text && attachments.length === 0) || sending) return;
+    const pendingAttachments = attachments;
+    const messageForModel = buildMessageWithAttachments(text, pendingAttachments);
+    const visibleText = text || "Attached text file";
     setInput("");
+    setAttachments([]);
     if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
     setSending(true);
     setActiveAgent(null);
@@ -897,15 +1213,15 @@ function ChatScreen({ session, onLogout }) {
 
     setMessages(prev => [
       ...prev,
-      { id: userId, role: "user", content: text },
-      { id: asstId, role: "assistant", content: "", agents: [], modelPlan: [], thinking: null, media: [] }
+      { id: userId, role: "user", content: visibleText, attachments: pendingAttachments.map(({ id, name, size }) => ({ id, name, size })) },
+      { id: asstId, role: "assistant", content: "", agents: [], modelPlan: [], thinking: null, media: [], collaborationSteps: [] }
     ]);
     setStreamingId(asstId);
 
     try {
       const res = await apiFetch("/api/chat", {
         method: "POST",
-        body: JSON.stringify({ message: text, conversationId: activeConvId, stream: true })
+        body: JSON.stringify({ message: messageForModel, conversationId: activeConvId, stream: true })
       });
 
       if (!res.ok) {
@@ -921,6 +1237,7 @@ function ChatScreen({ session, onLogout }) {
       let content = "";
       let agents = [];
       let modelPlan = [];
+      let collaborationSteps = [];
       let convId = activeConvId;
       let currentEvent = null;
 
@@ -943,20 +1260,79 @@ function ChatScreen({ session, onLogout }) {
             switch (currentEvent) {
               case "route":
                 agents = ev.agents ?? [];
+                collaborationSteps = buildRouteSteps(agents, ev.primary);
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, agents, collaborationSteps } : m));
                 break;
               case "agent_start":
                 setActiveAgent(ev.agent);
+                if (ev.agent) {
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: "Specialist is working on its part of the response.",
+                    status: "running",
+                    meta: "running"
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
                 break;
               case "agent_done":
                 setActiveAgent(null);
                 if (ev.agent && ev.model) {
                   modelPlan = [...modelPlan, { agent: ev.agent, model: ev.model }];
-                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, modelPlan } : m));
+                  const existingStep = collaborationSteps.find(step => step.id === `agent:${ev.agent}`);
+                  const priorDetail = existingStep?.detail ? `${existingStep.detail} ` : "";
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: `${priorDetail}Completed with ${shortModel(ev.model)}.`,
+                    status: "done",
+                    meta: "done"
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, modelPlan, collaborationSteps } : m));
+                }
+                break;
+              case "agent_detail":
+                if (ev.agent) {
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: buildAgentDetailText(ev),
+                    output: ev.output,
+                    status: ev.error ? "error" : "running",
+                    meta: ev.error ? "error" : "details"
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
                 }
                 break;
               case "thinking":
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "reasoning",
+                  title: "Reasoning captured",
+                  detail: "Private reasoning was separated from the answer before display.",
+                  status: "done",
+                  meta: "hidden"
+                });
                 setMessages(prev => prev.map(m => m.id === asstId
-                  ? { ...m, thinking: ev.thinking } : m));
+                  ? { ...m, thinking: ev.thinking || (ev.hidden ? "hidden" : null), collaborationSteps } : m));
+                break;
+              case "review":
+                const reviewIssues = ev.issues && ev.issues.length
+                  ? ` Issues: ${ev.issues.join(" ")}`
+                  : " No issues found.";
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "review",
+                  title: "Reviewer check",
+                  detail: `Quality score ${ev.score ?? "?"}/10, threshold ${ev.threshold ?? 7}, confidence ${ev.confidence ?? "unknown"}.${reviewIssues}`,
+                  status: ev.passed === false ? "error" : "done",
+                  meta: ev.passed === false ? "needs work" : "passed"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, review: ev, collaborationSteps } : m));
                 break;
               case "media":
                 setMessages(prev => prev.map(m => m.id === asstId
@@ -974,9 +1350,28 @@ function ChatScreen({ session, onLogout }) {
               case "done":
                 // Prefer modelPlan from done event (complete list)
                 if (ev.modelPlan && ev.modelPlan.length) modelPlan = ev.modelPlan;
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "final",
+                  title: "Final response ready",
+                  detail: "The collaboration trace is collapsed by default and can be expanded again.",
+                  status: "done",
+                  meta: "done"
+                });
                 setMessages(prev => prev.map(m => m.id === asstId
-                  ? { ...m, agents, modelPlan } : m));
+                  ? { ...m, agents, modelPlan, review: ev.review ?? m.review, collaborationSteps } : m));
                 if (convId) fetchConversations();
+                break;
+              case "error":
+                content = `Error: ${ev.message ?? "Request failed"}`;
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "error",
+                  title: "Generation error",
+                  detail: ev.message ?? "The request failed before a final answer was produced.",
+                  status: "error",
+                  meta: "error"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, content: `Error: ${ev.message ?? "Request failed"}`, collaborationSteps } : m));
                 break;
             }
             currentEvent = null;
@@ -1053,6 +1448,26 @@ function ChatScreen({ session, onLogout }) {
       )}
 
       <div className="input-area">
+        {attachments.length > 0 && (
+          <div className="attachment-tray">
+            {attachments.map(item => (
+              <div key={item.id} className="attachment-chip">
+                <span>Attached</span>
+                <span className="attachment-name">{item.name}</span>
+                <span className="attachment-size">{formatBytes(item.size)}</span>
+                <button
+                  className="attachment-remove"
+                  type="button"
+                  onClick={() => removeAttachment(item.id)}
+                  aria-label={`Remove ${item.name}`}
+                  disabled={sending}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="input-box">
           <textarea
             ref={textareaRef}
@@ -1060,15 +1475,16 @@ function ChatScreen({ session, onLogout }) {
             value={input}
             onChange={e => { setInput(e.target.value); autoResize(e); }}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             rows={1}
             disabled={sending}
           />
           <button className="send-btn" onClick={sendMessage}
-            disabled={!input.trim() || sending}>
+            disabled={(!input.trim() && attachments.length === 0) || sending}>
             <SendIcon />
           </button>
         </div>
-        <div className="input-hint">↵ to send · shift+↵ for newline</div>
+        <div className="input-hint">↵ to send · shift+↵ for newline · pastes over 500 chars attach automatically</div>
       </div>
     </div>
   );
