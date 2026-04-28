@@ -1,0 +1,32 @@
+{
+  "name": "mindportalix",
+  "version": "0.1.0",
+  "description": "AI assistant platform that orchestrates free OpenRouter models through specialized agents.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node src/server/index.js",
+    "dev": "node --watch src/server/index.js",
+    "test": "node --test",
+    "test:agents": "node --test tests/agents",
+    "test:integration": "node --test tests/integration",
+    "test:hooks": "node --test tests/hooks"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "ai",
+    "agents",
+    "openrouter",
+    "supabase",
+    "orchestration"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.2"
+  }
+}

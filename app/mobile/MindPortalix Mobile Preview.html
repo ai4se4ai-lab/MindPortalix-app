@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MindPortalix — Mobile Preview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a;
+    min-height: 100vh;
+    font-family: 'DM Sans', sans-serif;
+  }
+  #root {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 40px;
+    padding: 40px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .scene-label {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #444;
+    text-align: center;
+    margin-top: 20px;
+  }
+
+  /* Phone shell */
+  .phone {
+    width: 320px;
+    height: 693px;
+    background: #0d0d0d;
+    border-radius: 44px;
+    border: 1.5px solid #2a2a2a;
+    box-shadow:
+      0 0 0 6px #111,
+      0 0 0 7px #222,
+      0 40px 80px rgba(0,0,0,0.8),
+      inset 0 1px 0 rgba(255,255,255,0.06);
+    overflow: hidden;
+    position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Notch */
+  .phone-notch {
+    position: absolute;
+    top: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 126px; height: 34px;
+    background: #000;
+    border-radius: 0 0 20px 20px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  .notch-cam {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+  }
+  .notch-speaker {
+    width: 40px; height: 4px;
+    border-radius: 2px;
+    background: #1c1c1c;
+  }
+
+  /* Status bar */
+  .phone-status {
+    position: absolute;
+    top: 14px; left: 0; right: 0;
+    padding: 0 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: #e8e8e3;
+  }
+  .status-icons {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  /* Home indicator */
+  .phone-home {
+    position: absolute;
+    bottom: 8px; left: 50%;
+    transform: translateX(-50%);
+    width: 134px; height: 5px;
+    background: rgba(255,255,255,0.25);
+    border-radius: 3px;
+    z-index: 10;
+  }
+
+  /* Screen content */
+  .phone-screen {
+    position: absolute;
+    inset: 0;
+    padding-top: 44px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── CSS vars ── */
+  :root {
+    --accent:  #a3e635;
+    --bg:      #0d0d0d;
+    --bg2:     #141414;
+    --border:  #1e1e1e;
+    --text:    #e8e8e3;
+    --text2:   #777770;
+    --text3:   #333330;
+    --mono:    'DM Mono', monospace;
+  }
+
+  /* ── Auth screen ── */
+  .m-auth {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 36px 28px 40px;
+    background: var(--bg);
+    background-image: radial-gradient(ellipse 120% 50% at 50% 0%, rgba(163,230,53,0.04) 0%, transparent 70%);
+  }
+  .m-auth-logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 44px;
+  }
+  .logo-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+  .m-auth h1 {
+    font-size: 24px; font-weight: 300; letter-spacing: -0.02em;
+    color: var(--text); margin-bottom: 4px;
+  }
+  .m-auth p { font-size: 13px; color: var(--text2); margin-bottom: 32px; }
+
+  .m-field { margin-bottom: 14px; }
+  .m-field label {
+    display: block; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--text2); margin-bottom: 7px;
+  }
+  .m-field input {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px; color: var(--text);
+    font-family: 'DM Sans', sans-serif; font-size: 14px; outline: none;
+  }
+  .m-field input::placeholder { color: var(--text3); }
+  .m-btn {
+    width: 100%; background: var(--accent); color: #0d0d0d;
+    border: none; border-radius: 10px; padding: 14px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 600;
+    margin-top: 10px; cursor: pointer;
+  }
+  .m-toggle { text-align: center; margin-top: 22px; font-size: 13px; color: var(--text2); }
+  .m-toggle span { color: var(--accent); }
+
+  /* ── Chat screen ── */
+  .m-chat { flex: 1; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+  .m-header {
+    padding: 12px 20px 10px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .m-header-logo {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .pulse-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .m-header-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text2); background: none;
+    border: 1px solid var(--border); border-radius: 5px; padding: 5px 10px;
+  }
+
+  .m-messages {
+    flex: 1; overflow-y: auto; padding: 16px 20px 0;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .m-messages::-webkit-scrollbar { width: 0; }
+
+  .m-msg { padding: 14px 0; border-bottom: 1px solid var(--border); }
+  .m-msg:last-child { border-bottom: none; }
+  .m-msg-tag {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+  }
+  .m-msg-tag.user { color: var(--text3); }
+  .m-msg-tag.ai { color: var(--accent); }
+  .ai-tag-dot { width: 3px; height: 3px; border-radius: 50%; background: var(--accent); }
+  .m-msg-text { font-size: 14px; line-height: 1.65; color: var(--text); }
+  .m-msg-text.user { color: var(--text2); font-weight: 300; }
+
+  .m-copy-btn {
+    margin-top: 8px; background: none; border: 1px solid var(--border);
+    border-radius: 4px; padding: 3px 8px; font-family: var(--mono);
+    font-size: 9px; letter-spacing: 0.06em; color: var(--text3);
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+
+  .typing { display: flex; gap: 4px; align-items: center; padding: 4px 0; }
+  .typing span {
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    animation: tdot 1.2s ease-in-out infinite;
+  }
+  .typing span:nth-child(2) { animation-delay: 0.2s; }
+  .typing span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes tdot { 0%,60%,100%{opacity:0.2;transform:translateY(0)} 30%{opacity:1;transform:translateY(-3px)} }
+
+  .m-input-area {
+    padding: 10px 16px 16px;
+    background: var(--bg);
+  }
+  .m-input-box {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 10px 10px 10px 14px;
+  }
+  .m-input-box input {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 14px;
+  }
+  .m-input-box input::placeholder { color: var(--text3); }
+  .m-send {
+    width: 32px; height: 32px; background: var(--accent); border: none;
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const MESSAGES = [
+  { role: "user", text: "What's the best way to stay focused during deep work sessions?" },
+  { role: "ai", text: "Block 90-minute sessions aligned with your ultradian rhythm, eliminate all notifications, and use a single-tasking rule: one browser tab, one document. The enemy of focus isn't distraction — it's context switching." },
+  { role: "user", text: "Any techniques for getting started when I feel resistance?" },
+  { role: "ai", text: "Use a 2-minute rule: just open the file and write one sentence. Resistance usually lives at the threshold, not inside the work itself. Once you're in motion, momentum carries you." },
+];
+
+function PhoneShell({ children, label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div className="phone">
+        <div className="phone-notch">
+          <div className="notch-speaker"></div>
+          <div className="notch-cam"></div>
+        </div>
+        <div className="phone-status">
+          <span>9:41</span>
+          <div className="status-icons">
+            <svg width="15" height="11" viewBox="0 0 15 11" fill="#e8e8e3">
+              <rect x="0" y="4" width="3" height="7" rx="0.5"/>
+              <rect x="4" y="2.5" width="3" height="8.5" rx="0.5"/>
+              <rect x="8" y="1" width="3" height="10" rx="0.5"/>
+              <rect x="12" y="0" width="3" height="11" rx="0.5" opacity="0.3"/>
+            </svg>
+            <svg width="16" height="11" viewBox="0 0 16 11" fill="none" stroke="#e8e8e3" strokeWidth="1.2">
+              <rect x="0.6" y="0.6" width="12.8" height="9.8" rx="2.5"/>
+              <path d="M14 3.5v4c1-.4 1.5-1.2 1.5-2s-.5-1.6-1.5-2z" fill="#e8e8e3" stroke="none"/>
+              <rect x="2" y="2" width="8" height="7" rx="1.5" fill="#e8e8e3"/>
+            </svg>
+          </div>
+        </div>
+        <div className="phone-screen">{children}</div>
+        <div className="phone-home"></div>
+      </div>
+      <div className="scene-label">{label}</div>
+    </div>
+  );
+}
+
+function AuthScreen() {
+  return (
+    <div className="m-auth">
+      <div className="m-auth-logo">
+        <span className="logo-dot"></span>
+        MindPortalix
+      </div>
+      <h1>Welcome back.</h1>
+      <p>Sign in to continue your session.</p>
+      <div className="m-field">
+        <label>Email</label>
+        <input type="email" placeholder="you@example.com" readOnly />
+      </div>
+      <div className="m-field">
+        <label>Password</label>
+        <input type="password" placeholder="••••••••" readOnly />
+      </div>
+      <button className="m-btn">Sign In</button>
+      <div className="m-toggle">No account? <span>Sign up</span></div>
+    </div>
+  );
+}
+
+function ChatScreen() {
+  return (
+    <div className="m-chat">
+      <div className="m-header">
+        <div className="m-header-logo">
+          <span className="pulse-dot"></span>
+          MindPortalix
+        </div>
+        <button className="m-header-btn">Sign out</button>
+      </div>
+      <div className="m-messages">
+        {MESSAGES.map((m, i) => (
+          <div className="m-msg" key={i}>
+            <div className={`m-msg-tag ${m.role === "ai" ? "ai" : "user"}`}>
+              {m.role === "ai"
+                ? <><span className="ai-tag-dot"></span>Assistant</>
+                : "You"
+              }
+            </div>
+            <div className={`m-msg-text ${m.role === "user" ? "user" : ""}`}>{m.text}</div>
+            {m.role === "ai" && (
+              <button className="m-copy-btn">
+                <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                  <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+                  <path d="M11 5V3.5a1 1 0 00-1-1H2.5a1 1 0 00-1 1V11a1 1 0 001 1H5"/>
+                </svg>
+                Copy
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="m-msg">
+          <div className="m-msg-tag ai"><span className="ai-tag-dot"></span>Assistant</div>
+          <div className="typing"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div className="m-input-area">
+        <div className="m-input-box">
+          <input placeholder="Message…" readOnly />
+          <button className="m-send">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M2 8l12-6-4 6 4 6L2 8z" fill="#0d0d0d"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <>
+      <PhoneShell label="Auth screen">
+        <AuthScreen />
+      </PhoneShell>
+      <PhoneShell label="Chat screen">
+        <ChatScreen />
+      </PhoneShell>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
