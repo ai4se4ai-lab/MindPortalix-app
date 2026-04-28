@@ -77,6 +77,32 @@ export const AGENT_REGISTRY = Object.freeze({
     model: "microsoft/phi-3-mini-128k-instruct",
     responsibilities: ["Render Markdown", "Produce JSON or tables", "Normalize final output"],
     keywords: ["format", "markdown", "json", "table", "render", "template"]
+  },
+  image_generator: {
+    id: "image_generator",
+    name: "Image Generator",
+    model: "black-forest-labs/flux-1-schnell:free",
+    modality: "image",
+    responsibilities: ["Generate images from text prompts", "Create visual content", "Illustrate concepts"],
+    keywords: [
+      "generate image", "create image", "draw", "illustrate", "render image",
+      "image of", "picture of", "text to image", "dalle", "stable diffusion",
+      "flux", "paint", "sketch", "artwork", "visualize", "logo", "icon",
+      "banner", "thumbnail", "mockup", "portrait", "landscape"
+    ]
+  },
+  audio_generator: {
+    id: "audio_generator",
+    name: "Audio Generator",
+    model: "google/lyria-3-pro-preview",
+    modality: "audio",
+    responsibilities: ["Generate music from text prompts", "Convert text to speech", "Create audio content"],
+    keywords: [
+      "generate audio", "create audio", "generate music", "compose music",
+      "text to speech", "tts", "voice over", "narrate", "sing", "song",
+      "sound effect", "audio clip", "podcast", "speech", "melody", "tune",
+      "beat", "track", "jingle", "ringtone", "read aloud"
+    ]
   }
 });
 

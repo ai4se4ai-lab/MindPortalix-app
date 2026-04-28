@@ -1,5 +1,5 @@
-// v2 — cache version bump clears the old v1 cache that had the purple UI
-const CACHE = "mindportalix-v2";
+// v3 — adds thinking blocks, model pills, markdown rendering
+const CACHE = "mindportalix-v3";
 // HTML is intentionally excluded — always fetch fresh from network
 const PRECACHE = ["/manifest.json", "/icon-192.svg", "/icon-512.svg"];
 

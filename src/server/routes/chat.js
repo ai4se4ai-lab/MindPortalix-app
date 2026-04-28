@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { classifyIntent } from "../../orchestration/intent.js";
-import { runSpecialistAgent, reviewDraft } from "../../orchestration/responses.js";
+import { runSpecialistAgent, reviewDraft, parseContent } from "../../orchestration/responses.js";
 import { summarizeForMemory, InMemoryMemoryStore } from "../../storage/memory-store.js";
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
@@ -65,12 +65,15 @@ router.post("/", requireAuth, async (req, res) => {
       try {
         if (!savedConvId) {
           const convo = await store.createConversation({ userId, title: message.slice(0, 60) });
-          savedConvId = convo.id;
-          send("conversation", { conversationId: savedConvId });
+          if (convo?.id) {
+            savedConvId = convo.id;
+            send("conversation", { conversationId: savedConvId });
+          }
         }
-        await store.saveMessage({ conversationId: savedConvId, userId, role: "user", content: message });
+        if (savedConvId) {
+          await store.saveMessage({ conversationId: savedConvId, userId, role: "user", content: message });
+        }
       } catch (dbErr) {
-        // DB errors don't block the response
         console.error("[db] user message save failed:", dbErr.message);
       }
     }
@@ -83,6 +86,13 @@ router.post("/", requireAuth, async (req, res) => {
       const result = await runSpecialistAgent({ agentId, input: message, memories });
       specialistResults.push(result);
       send("agent_done", { agent: agentId, model: result.model });
+
+      // Immediately forward media results so the client can render them
+      if (result.mediaType === "image" && result.mediaUrl) {
+        send("media", { mediaType: "image", url: result.mediaUrl, caption: result.content });
+      } else if (result.mediaType === "audio" && result.mediaUrl) {
+        send("media", { mediaType: "audio", url: result.mediaUrl, caption: result.content });
+      }
     }
 
     if (closed) { res.end(); return; }
@@ -91,11 +101,29 @@ router.post("/", requireAuth, async (req, res) => {
       ?? specialistResults[0];
     const finalContent = primaryResult?.content ?? "I could not generate a response.";
 
-    const review = reviewDraft({ draft: finalContent, route });
-    send("review", { score: review.score, passed: review.passed, confidence: review.confidence });
+    // For pure media responses skip the text stream entirely
+    const isMediaOnly = specialistResults.every(r => r.mediaType);
 
-    // Stream the response word-by-word for typewriter UX
-    await streamWords(finalContent, word => send("delta", { delta: word }));
+    // review is used both inside the block and in the `done` event — hoist it
+    let review = { score: 10, passed: true, confidence: "high", issues: [] };
+
+    if (!isMediaOnly) {
+      // Split thinking / chain-of-thought from the actual answer
+      const { thinking, answer } = parseContent(finalContent);
+      if (thinking) send("thinking", { thinking });
+      const displayContent = answer || finalContent;
+
+      review = reviewDraft({ draft: displayContent, route });
+      send("review", { score: review.score, passed: review.passed, confidence: review.confidence });
+
+      // Stream the clean answer word-by-word for typewriter UX
+      await streamWords(displayContent, word => send("delta", { delta: word }));
+    }
+
+    // Build the canonical text to persist (media agents use their caption)
+    const persistContent = isMediaOnly
+      ? specialistResults.map(r => r.content).join("\n")
+      : (parseContent(finalContent).answer || finalContent);
 
     // Persist assistant message
     if (store instanceof SupabaseMemoryStore && savedConvId) {
@@ -104,10 +132,9 @@ router.post("/", requireAuth, async (req, res) => {
           conversationId: savedConvId,
           userId,
           role: "assistant",
-          content: finalContent,
+          content: persistContent,
           agent: route.primary,
           model: primaryResult?.model,
-          score: review.score
         });
       } catch (dbErr) {
         console.error("[db] assistant message save failed:", dbErr.message);
@@ -121,7 +148,7 @@ router.post("/", requireAuth, async (req, res) => {
         topic: route.primary,
         messages: [
           { role: "user", content: message },
-          { role: "assistant", content: finalContent }
+          { role: "assistant", content: persistContent }
         ],
         importance: 3
       })

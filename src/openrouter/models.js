@@ -1,47 +1,79 @@
 /**
  * OpenRouter free-model discovery and selection.
- * Fetches the live models list, filters to zero-cost models,
- * ranks them, and maps them to agent roles.
+ * Fetches the live models list, filters by zero-cost models,
+ * groups by output modality, and maps text models to agent roles.
+ *
+ * Supported modalities: "text" | "image" | "audio"
  */
 
-const BASE_URL = () => (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
+const BASE_URL = () =>
+  (process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1").replace(/\/$/, "");
 
-// Fallback list of known-good free models (used if the API call fails)
-const KNOWN_FREE_MODELS = [
-  "google/gemma-3-12b-it:free",
-  "google/gemma-3-4b-it:free",
-  "meta-llama/llama-3.1-8b-instruct:free",
-  "meta-llama/llama-3.2-3b-instruct:free",
-  "mistralai/mistral-7b-instruct:free",
-  "qwen/qwen-2.5-7b-instruct:free",
-  "qwen/qwen-2.5-72b-instruct:free",
-  "microsoft/phi-3-mini-128k-instruct:free",
-  "deepseek/deepseek-r1-distill-llama-70b:free",
-  "deepseek/deepseek-r1:free",
-  "google/gemini-2.0-flash-exp:free",
-  "nousresearch/hermes-3-llama-3.1-405b:free"
-];
-
-// Preferred model keywords mapped to agent roles
-const ROLE_PREFERENCES = {
-  researcher:  ["gemini", "gemma-3-12b", "llama-3.1-8b", "qwen-2.5-72b"],
-  coder:       ["deepseek", "qwen", "phi", "llama"],
-  writer:      ["gemma", "llama-3.1-8b", "mistral", "hermes"],
-  planner:     ["qwen-2.5-72b", "deepseek-r1", "llama-3.1-8b", "gemma-3-12b"],
-  memory:      ["llama-3.1-8b", "mistral", "gemma", "qwen"],
-  governor:    ["qwen", "llama", "gemma", "mistral"],
-  formatter:   ["phi", "gemma", "mistral", "llama"],
-  reviewer:    ["qwen-2.5-72b", "deepseek-r1", "llama-3.1-8b", "gemma-3-12b"],
-  orchestrator:["gemini-2.0-flash", "qwen-2.5-72b", "gemma-3-12b", "llama-3.1-8b"]
+// ── Fallback lists used when the live API call fails ───────────────────────
+const KNOWN_FREE_MODELS = {
+  text: [
+    "google/gemma-3-12b-it:free",
+    "google/gemma-3-8b-it:free",
+    "google/gemma-3-4b-it:free",
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "meta-llama/llama-3.2-3b-instruct:free",
+    "mistralai/mistral-7b-instruct:free",
+    "qwen/qwen-2.5-7b-instruct:free",
+    "qwen/qwen-2.5-72b-instruct:free",
+    "microsoft/phi-3-mini-128k-instruct:free",
+    "deepseek/deepseek-r1-distill-llama-70b:free",
+    "deepseek/deepseek-r1:free",
+    "google/gemini-2.0-flash-exp:free",
+  ],
+  image: [
+    "black-forest-labs/flux-1-schnell:free",
+    "stabilityai/stable-diffusion-xl-base-1.0:free",
+  ],
+  audio: [
+    "google/lyria-3-pro-preview",
+  ],
 };
 
-let _cache = null;
-let _cacheAt = 0;
-const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+// Maps raw OpenRouter architecture.modality strings → our modality keys
+const MODALITY_MAP = {
+  "text->text":          "text",
+  "text+image->text":    "text",   // vision-capable LLMs still produce text
+  "text->image":         "image",
+  "text->audio":         "audio",
+  "text->text+image":    "image",  // multi-modal output — treat as image
+};
 
-export async function getFreeModels() {
+// ── Preferred text model keywords per agent role ───────────────────────────
+// Ordered by reliability + quality. Hermes (Venice) omitted — frequently rate-limited.
+const ROLE_PREFERENCES = {
+  researcher:    ["gemini", "gemma-3-12b", "gemma-3-8b", "qwen-2.5-72b", "llama-3.1-8b"],
+  coder:         ["deepseek", "qwen-2.5-72b", "qwen", "phi", "llama"],
+  writer:        ["gemma-3-8b", "gemma", "llama-3.1-8b", "mistral", "qwen"],
+  planner:       ["qwen-2.5-72b", "deepseek-r1", "gemma-3-12b", "llama-3.1-8b", "gemma"],
+  memory:        ["llama-3.1-8b", "gemma-3-8b", "mistral", "gemma", "qwen"],
+  governor:      ["qwen-2.5-72b", "qwen", "llama", "gemma", "mistral"],
+  formatter:     ["phi", "gemma-3-8b", "gemma", "mistral", "llama"],
+  reviewer:      ["qwen-2.5-72b", "deepseek-r1", "gemma-3-12b", "llama-3.1-8b", "gemma"],
+  orchestrator:  ["gemini-2.0-flash", "qwen-2.5-72b", "gemma-3-12b", "gemma-3-8b", "llama-3.1-8b"],
+  // media agents — model selection handled differently, but keep here for fallback labels
+  image_generator: [],
+  audio_generator: [],
+};
+
+// ── Per-modality cache ─────────────────────────────────────────────────────
+const _cache    = {};
+const _cacheAt  = {};
+const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Fetch free models from OpenRouter filtered by output modality.
+ * @param {"text"|"image"|"audio"} modality
+ */
+export async function getFreeModels(modality = "text") {
   const now = Date.now();
-  if (_cache && now - _cacheAt < CACHE_TTL_MS) return _cache;
+  if (_cache[modality] && now - _cacheAt[modality] < CACHE_TTL) {
+    return _cache[modality];
+  }
 
   try {
     const headers = { "Content-Type": "application/json" };
@@ -55,60 +87,83 @@ export async function getFreeModels() {
     const { data } = await res.json();
 
     const free = (data ?? [])
-      .filter(m =>
-        m.id &&
-        String(m.pricing?.prompt ?? "1") === "0" &&
-        String(m.pricing?.completion ?? "1") === "0"
-      )
+      .filter(m => {
+        if (!m.id) return false;
+        if (String(m.pricing?.prompt ?? "1") !== "0") return false;
+        if (String(m.pricing?.completion ?? "1") !== "0") return false;
+
+        const raw     = m.architecture?.modality ?? m.modality ?? "text->text";
+        const mapped  = MODALITY_MAP[raw] ?? raw.split("->").pop();
+        return mapped === modality;
+      })
       .sort((a, b) => (b.context_length ?? 0) - (a.context_length ?? 0))
       .map(m => m.id);
 
-    if (free.length === 0) throw new Error("No free models returned");
+    if (free.length === 0) throw new Error(`No free ${modality} models found`);
 
-    _cache = free;
-    _cacheAt = now;
-    console.log(`[models] ${free.length} free models loaded from OpenRouter`);
+    _cache[modality] = free;
+    _cacheAt[modality] = now;
+    console.log(`[models] ${free.length} free ${modality} models loaded`);
     return free;
   } catch (err) {
-    console.warn(`[models] Live fetch failed (${err.message}), using fallback list`);
-    _cache = KNOWN_FREE_MODELS;
-    _cacheAt = now;
-    return _cache;
+    console.warn(`[models] Live fetch for "${modality}" failed (${err.message}), using fallback`);
+    const fallback = KNOWN_FREE_MODELS[modality] ?? KNOWN_FREE_MODELS.text;
+    _cache[modality] = fallback;
+    _cacheAt[modality] = now;
+    return fallback;
   }
 }
 
 /**
- * Pick the best free model for a given agent role.
- * Returns the highest-priority model whose id contains a preferred keyword,
- * falling back to the first available free model.
+ * Return the best free model for an agent role (text only).
  */
 export async function bestModelForRole(role) {
-  const models = await getFreeModels();
-  const prefs = ROLE_PREFERENCES[role] ?? [];
-
-  for (const keyword of prefs) {
-    const match = models.find(id => id.toLowerCase().includes(keyword));
+  const models = await getFreeModels("text");
+  const prefs  = ROLE_PREFERENCES[role] ?? [];
+  for (const kw of prefs) {
+    const match = models.find(id => id.toLowerCase().includes(kw));
     if (match) return match;
   }
-
-  // Generic fallback: first available free model
-  return models[0] ?? KNOWN_FREE_MODELS[0];
+  return models[0] ?? KNOWN_FREE_MODELS.text[0];
 }
 
 /**
- * Call OpenRouter trying models in priority order.
- * If the primary model fails (rate limit, unavailable, etc.) it tries the next free model.
+ * Return the best free model for a given output modality.
+ * For "text", respects ROLE_PREFERENCES; for image/audio returns first available.
  */
-export async function callWithFallback({ role, messages, maxAttempts = 3 }) {
-  const models = await getFreeModels();
-  const prefs = ROLE_PREFERENCES[role] ?? [];
+export async function bestModelForModality(modality, role) {
+  if (modality === "text") return bestModelForRole(role);
+  const models = await getFreeModels(modality);
+  return models[0] ?? KNOWN_FREE_MODELS[modality]?.[0];
+}
 
-  // Build ranked attempt list: preferred models first, then rest of free list
+// ── Text LLM caller ────────────────────────────────────────────────────────
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/**
+ * Call OpenRouter with automatic fallback through ranked free text models.
+ * 401 → throws immediately (bad key).
+ * 429/503 → waits 800ms, then tries the next model.
+ */
+export async function callWithFallback({ role, messages, maxAttempts = 5 }) {
+  const models = await getFreeModels("text");
+  const prefs  = ROLE_PREFERENCES[role] ?? [];
+
+  // Models known to return empty/unusable responses — pushed to the end of the fallback list
+  const UNRELIABLE = ["ling", "minimax", "ernie", "baichuan"];
+  const isUnreliable = (id) => UNRELIABLE.some(kw => id.toLowerCase().includes(kw));
+
+  // Build ranked list: preferred models first, then reliable free models, then unreliable ones last
   const ranked = [];
-  for (const keyword of prefs) {
-    const match = models.find(id => id.toLowerCase().includes(keyword) && !ranked.includes(id));
+  for (const kw of prefs) {
+    const match = models.find(id => id.toLowerCase().includes(kw) && !ranked.includes(id) && !isUnreliable(id));
     if (match) ranked.push(match);
   }
+  for (const id of models) {
+    if (!ranked.includes(id) && !isUnreliable(id)) ranked.push(id);
+  }
+  // Append unreliable models at the very end as last-resort fallbacks
   for (const id of models) {
     if (!ranked.includes(id)) ranked.push(id);
   }
@@ -122,30 +177,36 @@ export async function callWithFallback({ role, messages, maxAttempts = 3 }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
           "HTTP-Referer": process.env.APP_URL ?? "https://mindportalix.app",
-          "X-Title": "MindPortalix"
+          "X-Title": "MindPortalix",
         },
-        body: JSON.stringify({ model, messages, temperature: 0.3 })
+        body: JSON.stringify({ model, messages, temperature: 0.3 }),
       });
 
       if (!res.ok) {
         const body = await res.text();
-        // 401 = bad key → no point retrying other models
         if (res.status === 401) {
-          throw new Error(`Invalid OpenRouter API key (401). Update OPENROUTER_API_KEY in your .env file. Details: ${body}`);
+          throw new Error(`Invalid OpenRouter API key (401). Update OPENROUTER_API_KEY in .env. Details: ${body}`);
         }
-        // 429/503 = transient → try next model
         lastError = new Error(`${model} failed (${res.status}): ${body}`);
-        console.warn(`[models] ${model} failed (${res.status}), trying next…`);
+        console.warn(`[models] ${model} → ${res.status}, trying next…`);
+        if (res.status === 429) await sleep(800);
         continue;
       }
 
-      const data = await res.json();
-      const content = data.choices?.[0]?.message?.content ?? "";
+      const data    = await res.json();
+      const content = (data.choices?.[0]?.message?.content ?? "").trim();
+
+      // Treat empty / whitespace-only responses as failures — try the next model
+      if (!content) {
+        lastError = new Error(`${model} returned an empty response`);
+        console.warn(`[models] ${model} → empty response, trying next…`);
+        continue;
+      }
+
       return { content, model };
     } catch (err) {
-      // Re-throw auth errors immediately
       if (err.message.includes("401") || err.message.includes("Invalid OpenRouter API key")) {
         throw err;
       }
@@ -154,5 +215,5 @@ export async function callWithFallback({ role, messages, maxAttempts = 3 }) {
     }
   }
 
-  throw lastError ?? new Error("All free models failed");
+  throw lastError ?? new Error("All free text models exhausted");
 }

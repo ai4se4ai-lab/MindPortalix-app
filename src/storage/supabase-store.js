@@ -13,6 +13,34 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
+/**
+ * Detect Supabase "table does not exist" / schema-not-ready errors.
+ * These happen when the migration hasn't been run yet.
+ */
+function isSchemaError(error) {
+  if (!error) return false;
+  const msg = error.message ?? "";
+  return (
+    msg.includes("schema cache") ||
+    msg.includes("does not exist") ||
+    msg.includes("relation") ||
+    error.code === "42P01" ||   // PostgreSQL: undefined table
+    error.code === "PGRST200"   // PostgREST: schema cache miss
+  );
+}
+
+let _schemaMissingWarned = false;
+function warnSchemaMissing() {
+  if (_schemaMissingWarned) return;
+  _schemaMissingWarned = true;
+  console.warn(
+    "\n[db] ⚠ Supabase tables not found. Run the migration to enable persistence:\n" +
+    "  Option A — Supabase CLI:  npx supabase db push\n" +
+    "  Option B — Dashboard SQL: paste contents of supabase/migrations/*.sql\n" +
+    "  (Chat responses still work — using in-memory fallback for this session)\n"
+  );
+}
+
 export class SupabaseMemoryStore {
   constructor() {
     this._client = null;
@@ -33,7 +61,10 @@ export class SupabaseMemoryStore {
       .order("last_accessed", { ascending: false })
       .limit(20);
 
-    if (error) throw new Error(`Memory search failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return []; }
+      throw new Error(`Memory search failed: ${error.message}`);
+    }
 
     return (data ?? [])
       .map((row) => ({ ...toMemoryRecord(row), relevance: relevanceScore(row, terms) }))
@@ -50,7 +81,10 @@ export class SupabaseMemoryStore {
       .select()
       .single();
 
-    if (error) throw new Error(`Memory write failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return null; }
+      throw new Error(`Memory write failed: ${error.message}`);
+    }
     return toMemoryRecord(data);
   }
 
@@ -61,7 +95,10 @@ export class SupabaseMemoryStore {
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (error) throw new Error(`Memory list failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return []; }
+      throw new Error(`Memory list failed: ${error.message}`);
+    }
     return (data ?? []).map(toMemoryRecord);
   }
 
@@ -72,7 +109,10 @@ export class SupabaseMemoryStore {
       .select()
       .single();
 
-    if (error) throw new Error(`Message save failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return null; }
+      throw new Error(`Message save failed: ${error.message}`);
+    }
     return data;
   }
 
@@ -83,7 +123,10 @@ export class SupabaseMemoryStore {
       .eq("conversation_id", conversationId)
       .order("created_at", { ascending: true });
 
-    if (error) throw new Error(`Messages fetch failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return []; }
+      throw new Error(`Messages fetch failed: ${error.message}`);
+    }
     return data ?? [];
   }
 
@@ -94,7 +137,10 @@ export class SupabaseMemoryStore {
       .select()
       .single();
 
-    if (error) throw new Error(`Conversation create failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return null; }
+      throw new Error(`Conversation create failed: ${error.message}`);
+    }
     return data;
   }
 
@@ -105,7 +151,10 @@ export class SupabaseMemoryStore {
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
-    if (error) throw new Error(`Conversations list failed: ${error.message}`);
+    if (error) {
+      if (isSchemaError(error)) { warnSchemaMissing(); return []; }
+      throw new Error(`Conversations list failed: ${error.message}`);
+    }
     return data ?? [];
   }
 
@@ -115,7 +164,9 @@ export class SupabaseMemoryStore {
       .delete()
       .eq("id", conversationId);
 
-    if (error) throw new Error(`Conversation delete failed: ${error.message}`);
+    if (error && !isSchemaError(error)) {
+      throw new Error(`Conversation delete failed: ${error.message}`);
+    }
   }
 }
 
