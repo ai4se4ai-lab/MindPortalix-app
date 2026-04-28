@@ -3,9 +3,10 @@ import { reviewDraft, runSpecialistAgent } from "./responses.js";
 import { InMemoryMemoryStore, summarizeForMemory } from "../storage/memory-store.js";
 
 export class MindPortalixOrchestrator {
-  constructor({ memoryStore = new InMemoryMemoryStore(), reviewThreshold = 7 } = {}) {
+  constructor({ memoryStore = new InMemoryMemoryStore(), reviewThreshold = 7, agentRunner } = {}) {
     this.memoryStore = memoryStore;
     this.reviewThreshold = reviewThreshold;
+    this._runAgent = agentRunner ?? runSpecialistAgent;
   }
 
   async handleRequest({ userId = "anonymous", input }) {
@@ -17,7 +18,7 @@ export class MindPortalixOrchestrator {
     const memories = await this.memoryStore.search({ userId, query: input });
     const specialistIds = route.agents.filter((agentId) => agentId !== "reviewer");
     const specialistResults = await Promise.all(
-      specialistIds.map((agentId) => runSpecialistAgent({ agentId, input, memories }))
+      specialistIds.map((agentId) => this._runAgent({ agentId, input, memories }))
     );
 
     const draft = composeDraft({ input, route, memories, specialistResults });

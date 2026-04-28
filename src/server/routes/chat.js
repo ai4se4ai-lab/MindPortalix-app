@@ -2,10 +2,10 @@ import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { classifyIntent } from "../../orchestration/intent.js";
 import { runSpecialistAgent, reviewDraft } from "../../orchestration/responses.js";
-import { summarizeForMemory } from "../../storage/memory-store.js";
+import { summarizeForMemory, InMemoryMemoryStore } from "../../storage/memory-store.js";
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
-import { InMemoryMemoryStore } from "../../storage/memory-store.js";
 import { listAgents } from "../../agents/registry.js";
+import { getFreeModels } from "../../openrouter/models.js";
 
 const router = Router();
 const store = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -16,85 +16,92 @@ router.get("/agents", (_req, res) => {
   res.json({ agents: listAgents() });
 });
 
+router.get("/models", async (_req, res) => {
+  try {
+    const models = await getFreeModels();
+    res.json({ models, count: models.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post("/", requireAuth, async (req, res) => {
-  const { message, conversationId, stream: wantStream = true } = req.body;
+  const { message, conversationId } = req.body;
   const userId = req.user.id;
 
   if (!message?.trim()) {
     return res.status(400).json({ error: "message is required" });
   }
 
-  const route = classifyIntent(message);
-  const memories = await store.search({ userId, query: message }).catch(() => []);
-  const specialistIds = route.agents.filter((id) => id !== "reviewer");
+  // Set up SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
 
-  if (wantStream) {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.setHeader("X-Accel-Buffering", "no");
-    res.flushHeaders();
+  let closed = false;
+  req.on("close", () => { closed = true; });
 
-    const send = (event, data) => {
+  function send(event, data) {
+    if (closed) return;
+    try {
       res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    };
+    } catch {
+      closed = true;
+    }
+  }
 
+  try {
+    const route = classifyIntent(message);
     send("route", { agents: route.agents, primary: route.primary });
 
-    try {
-      let savedConversationId = conversationId;
-      if (store instanceof SupabaseMemoryStore) {
-        if (!savedConversationId) {
-          const convo = await store.createConversation({
-            userId,
-            title: message.slice(0, 60)
-          });
-          savedConversationId = convo.id;
-          send("conversation", { conversationId: savedConversationId });
+    const memories = await store.search({ userId, query: message }).catch(() => []);
+    const specialistIds = route.agents.filter(id => id !== "reviewer");
+
+    // Persist user message
+    let savedConvId = conversationId ?? null;
+    if (store instanceof SupabaseMemoryStore) {
+      try {
+        if (!savedConvId) {
+          const convo = await store.createConversation({ userId, title: message.slice(0, 60) });
+          savedConvId = convo.id;
+          send("conversation", { conversationId: savedConvId });
         }
-        await store.saveMessage({
-          conversationId: savedConversationId,
-          userId,
-          role: "user",
-          content: message
-        });
+        await store.saveMessage({ conversationId: savedConvId, userId, role: "user", content: message });
+      } catch (dbErr) {
+        // DB errors don't block the response
+        console.error("[db] user message save failed:", dbErr.message);
       }
+    }
 
-      const specialistResults = [];
-      for (const agentId of specialistIds) {
-        send("agent_start", { agent: agentId });
-        let agentContent = "";
-        const result = await runSpecialistAgent({
-          agentId,
-          input: message,
-          memories,
-          stream: agentId === route.primary,
-          onChunk: agentId === route.primary
-            ? (delta) => {
-                agentContent += delta;
-                send("delta", { agent: agentId, delta });
-              }
-            : undefined
-        });
-        specialistResults.push(result);
-        send("agent_done", { agent: agentId, model: result.model });
-      }
+    // Call specialist agents (non-streaming to OpenRouter — reliable)
+    const specialistResults = [];
+    for (const agentId of specialistIds) {
+      if (closed) break;
+      send("agent_start", { agent: agentId });
+      const result = await runSpecialistAgent({ agentId, input: message, memories });
+      specialistResults.push(result);
+      send("agent_done", { agent: agentId, model: result.model });
+    }
 
-      const primaryResult = specialistResults.find((r) => r.agent === route.primary)
-        ?? specialistResults[0];
-      const finalContent = primaryResult?.content ?? "I could not generate a response.";
+    if (closed) { res.end(); return; }
 
-      const review = reviewDraft({
-        draft: finalContent,
-        route,
-        threshold: 7
-      });
+    const primaryResult = specialistResults.find(r => r.agent === route.primary)
+      ?? specialistResults[0];
+    const finalContent = primaryResult?.content ?? "I could not generate a response.";
 
-      send("review", { score: review.score, passed: review.passed, confidence: review.confidence });
+    const review = reviewDraft({ draft: finalContent, route });
+    send("review", { score: review.score, passed: review.passed, confidence: review.confidence });
 
-      if (store instanceof SupabaseMemoryStore && savedConversationId) {
+    // Stream the response word-by-word for typewriter UX
+    await streamWords(finalContent, word => send("delta", { delta: word }));
+
+    // Persist assistant message
+    if (store instanceof SupabaseMemoryStore && savedConvId) {
+      try {
         await store.saveMessage({
-          conversationId: savedConversationId,
+          conversationId: savedConvId,
           userId,
           role: "assistant",
           content: finalContent,
@@ -102,51 +109,51 @@ router.post("/", requireAuth, async (req, res) => {
           model: primaryResult?.model,
           score: review.score
         });
+      } catch (dbErr) {
+        console.error("[db] assistant message save failed:", dbErr.message);
       }
-
-      await store.write(
-        summarizeForMemory({
-          userId,
-          topic: route.primary,
-          messages: [
-            { role: "user", content: message },
-            { role: "assistant", content: finalContent }
-          ],
-          importance: 3
-        })
-      ).catch(() => null);
-
-      send("done", {
-        conversationId: savedConversationId,
-        route,
-        review,
-        modelPlan: specialistResults.map(({ agent, model }) => ({ agent, model }))
-      });
-    } catch (err) {
-      send("error", { message: err.message });
-    } finally {
-      res.end();
     }
-  } else {
-    try {
-      const specialistResults = await Promise.all(
-        specialistIds.map((agentId) => runSpecialistAgent({ agentId, input: message, memories }))
-      );
-      const primaryResult = specialistResults.find((r) => r.agent === route.primary) ?? specialistResults[0];
-      const finalContent = primaryResult?.content ?? "No response generated.";
-      const review = reviewDraft({ draft: finalContent, route });
 
-      res.json({
-        route,
-        content: finalContent,
-        review,
-        memories: memories.length,
-        modelPlan: specialistResults.map(({ agent, model }) => ({ agent, model }))
-      });
-    } catch (err) {
-      res.status(500).json({ error: err.message });
-    }
+    // Write memory summary (best-effort)
+    store.write(
+      summarizeForMemory({
+        userId,
+        topic: route.primary,
+        messages: [
+          { role: "user", content: message },
+          { role: "assistant", content: finalContent }
+        ],
+        importance: 3
+      })
+    ).catch(() => null);
+
+    send("done", {
+      conversationId: savedConvId,
+      route,
+      review,
+      modelPlan: specialistResults.map(({ agent, model }) => ({ agent, model }))
+    });
+  } catch (err) {
+    console.error("[chat] error:", err.message);
+    send("error", { message: err.message });
+  } finally {
+    res.end();
   }
 });
+
+// Simulate streaming by sending words with a small delay
+function streamWords(text, onWord) {
+  return new Promise(resolve => {
+    const words = text.split(/(\s+)/);
+    let i = 0;
+    function next() {
+      if (i >= words.length) { resolve(); return; }
+      onWord(words[i++]);
+      // ~30ms per token gives ~33 tokens/sec typewriter feel
+      setImmediate(next);
+    }
+    next();
+  });
+}
 
 export default router;
