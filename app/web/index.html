@@ -1,0 +1,1629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>MindPortalix</title>
+<meta name="description" content="Orchestrated AI powered by specialist agents and free OpenRouter models." />
+<meta name="theme-color" content="#0d0d0d" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="/icon-192.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0d0d;
+    --bg2:       #141414;
+    --bg3:       #1c1c1c;
+    --border:    #5e5e5e;
+    --border-strong: #9a9a9a;
+    --text:      #e8e8e3;
+    --text2:     #888880;
+    --text3:     #4a4a45;
+    --accent:    #a3e635;
+    --accent-dim:rgba(163,230,53,0.12);
+    --font:      'DM Sans', sans-serif;
+    --mono:      'DM Mono', monospace;
+    --radius:    12px;
+  }
+
+  html, body, #root {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── Auth ─────────────────────────────────────────────── */
+  .auth-wrap {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 24px;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(163,230,53,0.04) 0%, transparent 70%);
+  }
+  .auth-card { width: 100%; max-width: 400px; }
+  .auth-logo {
+    font-family: var(--mono); font-size: 13px; font-weight: 400;
+    letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+    margin-bottom: 40px; display: flex; align-items: center; gap: 8px;
+  }
+  .auth-logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); display: inline-block; }
+  .auth-title { font-size: 26px; font-weight: 300; letter-spacing: -0.02em; color: var(--text); margin-bottom: 6px; }
+  .auth-sub { font-size: 14px; color: var(--text2); margin-bottom: 36px; }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block; font-size: 11px; font-family: var(--mono);
+    letter-spacing: 0.08em; text-transform: uppercase; color: var(--text2); margin-bottom: 8px;
+  }
+  .field input {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 11px 14px; color: var(--text);
+    font-family: var(--font); font-size: 14px; outline: none; transition: border-color 0.15s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--text3); }
+  .btn-primary {
+    width: 100%; background: var(--accent); color: #0d0d0d;
+    border: none; border-radius: 8px; padding: 12px;
+    font-family: var(--font); font-size: 14px; font-weight: 600;
+    cursor: pointer; margin-top: 8px; transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-primary:active { transform: scale(0.99); }
+  .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
+  .auth-toggle {
+    text-align: center; margin-top: 24px; font-size: 13px; color: var(--text2);
+  }
+  .auth-toggle button {
+    background: none; border: none; color: var(--accent);
+    cursor: pointer; font-size: 13px; font-family: var(--font);
+    text-decoration: underline; text-underline-offset: 3px;
+  }
+  .auth-error {
+    background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #f87171; margin-bottom: 16px;
+  }
+  .auth-success {
+    background: rgba(163,230,53,0.08); border: 1px solid rgba(163,230,53,0.25);
+    border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 16px;
+  }
+
+  /* ── Chat layout ──────────────────────────────────────── */
+  .chat-wrap {
+    height: 100vh; display: flex; flex-direction: column; align-items: center;
+  }
+  .chat-header {
+    width: 100%; max-width: 700px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .header-logo {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--accent);
+    display: flex; align-items: center; gap: 7px;
+  }
+  .header-logo-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+    animation: pulse 2.5s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+  .header-actions { display: flex; align-items: center; gap: 8px; }
+  .btn-ghost {
+    background: none; border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 12px; font-family: var(--mono); font-size: 11px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2);
+    cursor: pointer; transition: border-color 0.15s, color 0.15s;
+  }
+  .btn-ghost:hover { border-color: var(--text3); color: var(--text); }
+  .btn-ghost.danger:hover { border-color: rgba(239,68,68,0.4); color: #f87171; }
+
+  /* ── History drawer ───────────────────────────────────── */
+  .drawer-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 50; backdrop-filter: blur(2px);
+  }
+  .drawer {
+    position: fixed; left: 0; top: 0; bottom: 0; width: 280px;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    z-index: 51; display: flex; flex-direction: column;
+    animation: slide-in 0.2s ease;
+  }
+  @keyframes slide-in { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+  .drawer-header {
+    padding: 20px 20px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .drawer-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text2); }
+  .drawer-close {
+    background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 0 2px;
+    transition: color 0.15s;
+  }
+  .drawer-close:hover { color: var(--text); }
+  .drawer-new {
+    margin: 12px 16px; background: none; border: 1px solid var(--border);
+    border-radius: 7px; padding: 9px 14px; color: var(--text2);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em;
+    text-transform: uppercase; cursor: pointer; transition: all 0.15s;
+    text-align: left; width: calc(100% - 32px);
+  }
+  .drawer-new:hover { border-color: var(--accent); color: var(--accent); }
+  .drawer-list { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
+  .conv-item {
+    padding: 9px 12px; border-radius: 7px; cursor: pointer;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    transition: background 0.12s; margin-bottom: 1px;
+  }
+  .conv-item:hover { background: var(--bg3); }
+  .conv-item.active { background: var(--accent-dim); }
+  .conv-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .conv-del {
+    background: none; border: none; color: var(--text3); cursor: pointer;
+    font-size: 13px; padding: 2px; border-radius: 3px; opacity: 0;
+    transition: opacity 0.12s, color 0.12s; flex-shrink: 0;
+  }
+  .conv-item:hover .conv-del { opacity: 1; }
+  .conv-del:hover { color: #f87171; }
+
+  /* ── Messages ────────────────────────────────────────── */
+  .messages-area {
+    flex: 1; width: 100%; max-width: 700px;
+    overflow-y: auto; padding: 24px 24px 0;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  .msg-group {
+    display: flex; flex-direction: column;
+    padding: 18px 0; border-bottom: 1px solid var(--border); position: relative;
+  }
+  .msg-group:last-child { border-bottom: none; }
+  .msg-role-tag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .msg-role-tag.user { color: var(--text3); }
+  .msg-role-tag.assistant { color: var(--accent); }
+  .msg-role-tag .tag-dot {
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent);
+    flex-shrink: 0;
+  }
+  .agent-route {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em;
+    color: var(--text3); text-transform: none;
+  }
+  .msg-content {
+    font-size: 15px; line-height: 1.7; color: var(--text);
+    white-space: pre-wrap; text-wrap: pretty;
+  }
+  .msg-content.user { color: var(--text2); font-weight: 300; }
+
+  /* Inline cursor */
+  .cursor-blink {
+    display: inline-block; width: 2px; height: 14px;
+    background: var(--accent); animation: cblink 0.7s step-end infinite;
+    vertical-align: text-bottom; margin-left: 1px;
+  }
+  @keyframes cblink { 0%,100%{opacity:1;} 50%{opacity:0;} }
+
+  .msg-actions { display: flex; gap: 6px; margin-top: 10px; opacity: 0; transition: opacity 0.15s; }
+  .msg-group:hover .msg-actions { opacity: 1; }
+  .copy-btn {
+    background: none; border: 1px solid var(--border); border-radius: 5px;
+    padding: 4px 9px; font-family: var(--mono); font-size: 10px;
+    color: var(--text3); cursor: pointer; letter-spacing: 0.06em;
+    transition: all 0.15s; display: flex; align-items: center; gap: 5px;
+  }
+  .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .copy-btn.copied { color: var(--accent); border-color: var(--accent); background: var(--accent-dim); }
+
+  /* ── Empty state ──────────────────────────────────────── */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px; color: var(--text3); padding: 60px 24px;
+    width: 100%; max-width: 700px;
+  }
+  .empty-icon {
+    width: 42px; height: 42px; border: 1px solid var(--border);
+    border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    margin-bottom: 4px;
+  }
+  .empty-state h3 { font-size: 15px; font-weight: 400; color: var(--text2); }
+  .empty-state p { font-size: 13px; text-align: center; max-width: 280px; }
+
+  /* ── Typing indicator ─────────────────────────────────── */
+  .typing-indicator { display: flex; gap: 4px; align-items: center; padding: 6px 0 2px; }
+  .typing-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+    animation: typing 1.2s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typing {
+    0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-3px); }
+  }
+  .typing-status {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.06em;
+    color: var(--text3); margin-left: 4px;
+  }
+
+  /* ── Input area ───────────────────────────────────────── */
+  .input-area {
+    width: 100%; max-width: 700px;
+    padding: 16px 24px 24px; position: sticky; bottom: 0;
+  }
+  .input-area::before {
+    content: ''; position: absolute; top: -32px; left: 0; right: 0; height: 32px;
+    background: linear-gradient(to bottom, transparent, var(--bg));
+    pointer-events: none;
+  }
+  .input-box {
+    display: flex; align-items: flex-end; gap: 10px;
+    background: var(--bg2);
+    border: 2px solid var(--border-strong);
+    border-radius: var(--radius); padding: 11px 11px 11px 15px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow:
+      inset 0 0 0 1px rgba(0,0,0,0.55),
+      0 0 0 1px rgba(255,255,255,0.12);
+  }
+  .input-box:focus-within {
+    border-color: rgba(163,230,53,0.75);
+    box-shadow:
+      inset 0 0 0 1px rgba(163,230,53,0.14),
+      0 0 0 1px rgba(163,230,53,0.45),
+      0 0 0 3px rgba(163,230,53,0.12);
+  }
+  .input-box textarea {
+    flex: 1; background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--font); font-size: 14px;
+    line-height: 1.5; resize: none; min-height: 22px; max-height: 160px; overflow-y: auto;
+  }
+  .input-box textarea::placeholder { color: var(--text3); }
+  .attachment-tray,
+  .message-attachments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+  }
+  .attachment-tray {
+    margin-bottom: 8px;
+  }
+  .message-attachments {
+    margin: 4px 0 8px;
+  }
+  .attachment-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    border: 2px solid var(--border-strong);
+    border-radius: 8px;
+    background: var(--bg2);
+    padding: 6px 9px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text2);
+  }
+  .attachment-name {
+    color: var(--accent);
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .attachment-size { color: var(--text3); }
+  .attachment-remove {
+    border: none;
+    background: none;
+    color: var(--text3);
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1;
+    padding: 0 1px;
+  }
+  .attachment-remove:hover { color: #f87171; }
+  .send-btn {
+    width: 34px; height: 34px; min-width: 34px;
+    background: var(--accent); border: none; border-radius: 7px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.15s, transform 0.1s; flex-shrink: 0;
+  }
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+  .input-hint {
+    text-align: center; font-size: 11px; color: var(--text3);
+    font-family: var(--mono); margin-top: 10px;
+  }
+
+  /* ── Error banner ────────────────────────────────────── */
+  .error-banner {
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+    border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #f87171;
+    font-family: var(--mono); line-height: 1.6;
+  }
+  .error-banner strong { display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .error-banner code { background: rgba(248,113,113,0.1); border-radius: 3px; padding: 1px 5px; }
+
+  /* ── Loading splash ───────────────────────────────────── */
+  .loading-splash {
+    height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  .splash-dots { display: flex; gap: 6px; }
+  .splash-dot {
+    width: 5px; height: 5px; border-radius: 50%; background: var(--accent);
+    animation: typing 1.2s ease-in-out infinite;
+  }
+  .splash-dot:nth-child(2) { animation-delay: 0.2s; }
+  .splash-dot:nth-child(3) { animation-delay: 0.4s; }
+
+  /* ── Collaboration trace (collapsible reasoning summary) ───────────── */
+  .thinking-block,
+  .collab-panel {
+    margin-bottom: 10px;
+    border: 2px solid var(--border-strong);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.08),
+      0 0 0 1px rgba(163,230,53,0.28),
+      0 0 0 2px rgba(163,230,53,0.1);
+  }
+  .thinking-block summary,
+  .collab-summary {
+    padding: 7px 12px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text3);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    user-select: none;
+    transition: color 0.15s;
+  }
+  .thinking-block summary { cursor: pointer; }
+  .thinking-block summary::-webkit-details-marker { display: none; }
+  .thinking-block summary:hover,
+  .collab-summary:hover { color: var(--text2); }
+  .thinking-block summary .think-arrow,
+  .collab-summary .think-arrow {
+    font-size: 7px;
+    transition: transform 0.2s;
+    display: inline-block;
+  }
+  .thinking-block[open] summary .think-arrow,
+  .collab-panel.open .collab-summary .think-arrow { transform: rotate(90deg); }
+  .thinking-content {
+    padding: 10px 14px 12px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.65;
+    white-space: pre-wrap;
+    border-top: 1px solid var(--border-strong);
+    background: var(--bg2);
+    max-height: 240px;
+    overflow-y: auto;
+  }
+  .collab-summary-state {
+    margin-left: auto;
+    color: var(--accent);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+  .collab-details-button {
+    border: 2px solid rgba(163,230,53,0.95);
+    border-radius: 999px;
+    padding: 2px 7px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+    line-height: 1.2;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .collab-details-button:hover {
+    border-color: #c8f06b;
+    background: rgba(163,230,53,0.18);
+  }
+  .collab-body {
+    border-top: 1px solid var(--border-strong);
+    background: var(--bg2);
+    padding: 10px 12px 12px;
+  }
+  .collab-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .collab-step {
+    display: grid;
+    grid-template-columns: 12px minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 8px;
+  }
+  .collab-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-top: 6px;
+    background: var(--text3);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.02);
+  }
+  .collab-step.running .collab-dot {
+    background: var(--accent);
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  .collab-step.done .collab-dot { background: var(--accent); opacity: 0.8; }
+  .collab-step.error .collab-dot { background: #f87171; }
+  .collab-main { min-width: 0; }
+  .collab-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text2);
+  }
+  .collab-detail {
+    font-size: 12px;
+    color: var(--text3);
+    line-height: 1.45;
+    margin-top: 1px;
+  }
+  .collab-meta {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--text3);
+    white-space: nowrap;
+    padding-top: 1px;
+  }
+  .collab-output {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border: 2px solid var(--border-strong);
+    border-radius: 7px;
+    background: rgba(0,0,0,0.16);
+    color: var(--text2);
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    max-height: 220px;
+    overflow-y: auto;
+  }
+  .collab-cursor {
+    display: inline-block;
+    margin-left: 1px;
+    color: var(--accent);
+    animation: collab-cursor-blink 0.85s step-end infinite;
+    vertical-align: text-bottom;
+    font-weight: 300;
+  }
+  @keyframes collab-cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+
+  /* ── Model pills (agent → model transparency) ─────────────────── */
+  .model-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 8px;
+  }
+  .model-pill {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.04em;
+    color: var(--text3);
+    line-height: 1.6;
+  }
+  .pill-agent {
+    color: var(--accent);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    font-weight: 500;
+  }
+  .pill-sep { color: var(--text3); opacity: 0.5; }
+
+  /* ── Markdown prose ───────────────────────────────────────────── */
+  .markdown { font-size: 15px; line-height: 1.75; color: var(--text); }
+  .markdown p { margin-bottom: 0.75em; }
+  .markdown p:last-child { margin-bottom: 0; }
+  .markdown h1, .markdown h2, .markdown h3, .markdown h4 {
+    font-weight: 500;
+    margin: 1.1em 0 0.4em;
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .markdown h1 { font-size: 1.3em; }
+  .markdown h2 { font-size: 1.15em; }
+  .markdown h3 { font-size: 1em; color: var(--text2); }
+  .markdown ul, .markdown ol { padding-left: 1.4em; margin-bottom: 0.75em; }
+  .markdown li { margin-bottom: 0.25em; }
+  .markdown code {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    color: var(--accent);
+  }
+  .markdown pre {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin-bottom: 0.75em;
+  }
+  .markdown pre code {
+    background: none; border: none;
+    padding: 0; color: var(--text);
+    font-size: 12.5px; line-height: 1.6;
+  }
+  .markdown strong { font-weight: 600; }
+  .markdown em { font-style: italic; color: var(--text2); }
+  .markdown a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+  .markdown blockquote {
+    border-left: 2px solid var(--border);
+    padding-left: 14px;
+    color: var(--text2);
+    margin: 0.6em 0;
+  }
+  .markdown hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
+  .markdown table { width: 100%; border-collapse: collapse; margin-bottom: 0.75em; font-size: 13px; }
+  .markdown th, .markdown td { padding: 6px 10px; border: 1px solid var(--border); text-align: left; }
+  .markdown th { background: var(--bg2); color: var(--text2); font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* ── Media (image / audio) ───────────────────────────────────────────── */
+  .media-block { margin: 6px 0 10px; }
+  .media-image {
+    max-width: 100%; border-radius: 8px; border: 1px solid var(--border);
+    display: block; margin-top: 4px;
+  }
+  .media-audio {
+    width: 100%; margin-top: 6px;
+    accent-color: var(--accent);
+  }
+  .media-caption {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.05em; margin-top: 5px;
+  }
+  .media-pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 5px; padding: 2px 8px;
+    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    margin-bottom: 6px;
+  }
+  .media-pill .pill-agent { color: var(--accent); text-transform: uppercase; font-weight: 500; letter-spacing: 0.07em; }
+
+  /* ── Mobile tweaks ────────────────────────────────────── */
+  @media (max-width: 600px) {
+    .chat-header { padding: 16px 16px 12px; }
+    .messages-area { padding: 16px 16px 0; }
+    .input-area { padding: 12px 16px 20px; }
+    .input-area { padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+    .auth-wrap { padding: 20px 16px; }
+    .btn-ghost { padding: 5px 9px; font-size: 10px; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Config ────────────────────────────────────────────────────────────
+let _supabase = null;
+async function getSupabase() {
+  if (_supabase) return _supabase;
+  try {
+    const cfg = await fetch("/api/config").then(r => r.json()).catch(() => ({}));
+    if (cfg.SUPABASE_URL && cfg.SUPABASE_KEY) {
+      _supabase = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_KEY);
+    }
+  } catch {}
+  return _supabase;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function isApiKeyError(content) {
+  return typeof content === "string" && (
+    content.includes("401") || content.includes("Invalid OpenRouter API key") ||
+    content.includes("User not found") || content.includes("No auth credentials")
+  );
+}
+
+function isRateLimitError(content) {
+  return typeof content === "string" &&
+    content.includes("All free AI models are currently at capacity");
+}
+
+// "google/gemma-3-27b-it:free" → "gemma-3-27b"
+function shortModel(model) {
+  if (!model) return "–";
+  const name = (model.split("/").pop() ?? model)
+    .replace(/:free$/i, "")
+    .replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  return name.length > 28 ? name.slice(0, 28) + "…" : name;
+}
+
+function renderMarkdown(content) {
+  if (!content) return "";
+  try {
+    return window.marked.parse(content, { gfm: true, breaks: true });
+  } catch {
+    return content;
+  }
+}
+
+function formatAgentName(agent) {
+  if (!agent) return "Agent";
+  return agent
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function initialStreamingCollabSteps() {
+  return [
+    {
+      id: "preparing",
+      title: "Connecting",
+      detail: "Routing your request. Specialist chain-of-thought streams in the panel below as the model generates it.",
+      status: "running",
+      meta: "…"
+    }
+  ];
+}
+
+function buildRouteSteps(agents = [], primary) {
+  const routed = agents.filter(Boolean);
+  return [
+    {
+      id: "route",
+      title: "Route selected",
+      detail: routed.length
+        ? `Primary: ${formatAgentName(primary)}. Collaborators: ${routed.map(formatAgentName).join(", ")}.`
+        : "The request is being routed to the best available specialist.",
+      status: "done"
+    },
+    ...routed
+      .filter(agent => agent !== "reviewer")
+      .map(agent => ({
+        id: `agent:${agent}`,
+        agent,
+        title: formatAgentName(agent),
+        detail: agent === primary ? "Primary specialist preparing the answer." : "Supporting specialist contributing context.",
+        status: "pending"
+      }))
+  ];
+}
+
+function upsertCollabStep(steps, nextStep) {
+  const index = steps.findIndex(step => step.id === nextStep.id);
+  if (index === -1) return [...steps, nextStep];
+  return steps.map((step, i) => i === index ? { ...step, ...nextStep } : step);
+}
+
+function buildAgentDetailText(ev) {
+  const parts = [];
+  if (ev.mediaType) parts.push(`Media: ${ev.mediaType}`);
+  if (ev.hiddenReasoning) parts.push("Hidden reasoning removed from visible output");
+  if (ev.error) parts.push(`Error: ${ev.error}`);
+  return parts.length ? parts.join(" · ") : "Visible agent output captured.";
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+function createTextAttachment(content, name = "Pasted text") {
+  return {
+    id: `att_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    name,
+    content,
+    size: content.length
+  };
+}
+
+function buildMessageWithAttachments(text, attachments) {
+  const prompt = text.trim() || "Please review the attached text.";
+  if (!attachments.length) return prompt;
+
+  const attachmentBlocks = attachments.map((attachment, index) =>
+    [
+      `Attachment ${index + 1}: ${attachment.name}`,
+      "```text",
+      attachment.content,
+      "```"
+    ].join("\n")
+  );
+
+  return [prompt, "Attached text files:", ...attachmentBlocks].join("\n\n");
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────
+function SendIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <path d="M2 8l12-6-4 6 4 6L2 8z" fill="#0d0d0d"/>
+    </svg>
+  );
+}
+function CopyIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="5" y="5" width="9" height="9" rx="1.5"/>
+      <path d="M11 5V3.5a1 1 0 00-1-1H2.5a1 1 0 00-1 1V11a1 1 0 001 1H5"/>
+    </svg>
+  );
+}
+function CheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 8l3.5 3.5L13 4.5" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function BrainIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M9 3C7 3 5 5 5 7c0 1 .4 2 1 2.7C4.4 10.4 3 12 3 14c0 2.2 1.8 4 4 4h.5C8 19.3 9.4 20 11 20s3-.7 3.5-2H15c2.2 0 4-1.8 4-4 0-2-1.4-3.6-3-4.3.6-.7 1-1.7 1-2.7 0-2-2-4-4-4-1 0-1.9.4-2.6 1C9.8 3.4 9.4 3 9 3z"/>
+    </svg>
+  );
+}
+function HistoryIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <circle cx="8" cy="8" r="6.5"/>
+      <path d="M8 4.5V8l2.5 2.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// ── Auth Screen ───────────────────────────────────────────────────────
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError(""); setSuccess("");
+    if (!email || !password) { setError("Please fill in all fields."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setLoading(true);
+    try {
+      const sb = await getSupabase();
+      if (!sb) { setError("Auth service is not configured. Check your .env file."); setLoading(false); return; }
+      if (mode === "signup") {
+        const { data, error: err } = await sb.auth.signUp({ email, password });
+        if (err) throw err;
+        if (data.session) { onAuth(data.session); }
+        else { setSuccess("Check your email to confirm your account."); }
+      } else {
+        const { data, error: err } = await sb.auth.signInWithPassword({ email, password });
+        if (err) throw err;
+        onAuth(data.session);
+      }
+    } catch (err) {
+      setError(err.message || "Authentication failed.");
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="auth-wrap">
+      <div className="auth-card">
+        <div className="auth-logo">
+          <span className="auth-logo-dot"></span>
+          MindPortalix
+        </div>
+        <h1 className="auth-title">{mode === "login" ? "Welcome back." : "Create account."}</h1>
+        <p className="auth-sub">{mode === "login" ? "Sign in to continue your session." : "Start thinking with AI."}</p>
+        {error && <div className="auth-error">{error}</div>}
+        {success && <div className="auth-success">{success}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="field">
+            <label>Email</label>
+            <input type="email" placeholder="you@example.com" value={email}
+              onChange={e => setEmail(e.target.value)} autoFocus />
+          </div>
+          <div className="field">
+            <label>Password</label>
+            <input type="password" placeholder="••••••••" value={password}
+              onChange={e => setPassword(e.target.value)} />
+          </div>
+          <button className="btn-primary" type="submit" disabled={loading}>
+            {loading ? "Please wait…" : (mode === "login" ? "Sign In" : "Create Account")}
+          </button>
+        </form>
+        <div className="auth-toggle">
+          {mode === "login"
+            ? <>No account? <button onClick={() => { setMode("signup"); setError(""); }}>Sign up</button></>
+            : <>Already have one? <button onClick={() => { setMode("login"); setError(""); }}>Sign in</button></>
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Message component ─────────────────────────────────────────────────
+function CollaborationPanel({ steps = [], isStreaming }) {
+  const [isOpen, setIsOpen] = useState(isStreaming);
+
+  useEffect(() => {
+    setIsOpen(isStreaming);
+  }, [isStreaming]);
+
+  if (!steps.length) return null;
+
+  const running = steps.find(step => step.status === "running");
+  const summaryState = isStreaming
+    ? (running ? `Running: ${running.title}` : "Working")
+    : "Final ready";
+
+  return (
+    <div className={`collab-panel ${isOpen ? "open" : ""}`}>
+      <div className="collab-summary">
+        <span className="think-arrow">▶</span>
+        Agent collaboration
+        <span className="collab-summary-state">{summaryState}</span>
+        <button
+          className="collab-details-button"
+          type="button"
+          onClick={() => setIsOpen(open => !open)}
+        >
+          {isOpen ? "Hide details" : "Details"}
+        </button>
+      </div>
+      {isOpen && (
+        <div className="collab-body">
+        <div className="collab-list">
+          {steps.map(step => (
+            <div key={step.id} className={`collab-step ${step.status ?? "pending"}`}>
+              <span className="collab-dot"></span>
+              <div className="collab-main">
+                <div className="collab-title">{step.title}</div>
+                {step.detail && <div className="collab-detail">{step.detail}</div>}
+                {(step.output ||
+                  (isStreaming && step.agent && (step.status === "running" || step.status === "pending"))) && (
+                  <div className="collab-output">
+                    {step.output}
+                    {isStreaming &&
+                      step.agent &&
+                      (step.status === "running" || step.status === "pending") && (
+                      <span className="collab-cursor" aria-hidden="true">▍</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="collab-meta">{step.meta ?? step.status}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      )}
+    </div>
+  );
+}
+
+function Message({ msg, isStreaming, activeAgent }) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    navigator.clipboard?.writeText(msg.content).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const isUser = msg.role === "user";
+  const agentLabel = msg.agents && msg.agents.length > 0 ? msg.agents.join(" · ") : null;
+  const hasThinking = !isUser && msg.thinking;
+  const hasModelPlan = !isUser && msg.modelPlan && msg.modelPlan.length > 0;
+  const hasMedia = !isUser && msg.media && msg.media.length > 0;
+  const hasCollabSteps = !isUser && msg.collaborationSteps && msg.collaborationSteps.length > 0;
+  const hasAttachments = msg.attachments && msg.attachments.length > 0;
+
+  return (
+    <div className="msg-group">
+      <div className={`msg-role-tag ${isUser ? "user" : "assistant"}`}>
+        {isUser ? "You" : (
+          <>
+            <span className="tag-dot"></span>
+            Assistant
+            {agentLabel && <span className="agent-route">· {agentLabel}</span>}
+          </>
+        )}
+      </div>
+
+      {/* Model pills: planner → gemma-3-27b, etc. */}
+      {hasModelPlan && (
+        <div className="model-pills">
+          {msg.modelPlan.map(({ agent, model }) => (
+            <div key={agent} className="model-pill">
+              <span className="pill-agent">{agent}</span>
+              <span className="pill-sep">→</span>
+              <span>{shortModel(model)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Media blocks: images and audio players */}
+      {hasMedia && (
+        <div>
+          {msg.media.map((item, i) => (
+            <div key={i} className="media-block">
+              {item.type === "image" && (
+                <>
+                  <img
+                    className="media-image"
+                    src={item.url}
+                    alt={item.caption ?? "Generated image"}
+                    loading="lazy"
+                  />
+                  {item.caption && <div className="media-caption">{item.caption}</div>}
+                </>
+              )}
+              {item.type === "audio" && (
+                <>
+                  <audio className="media-audio" controls src={item.url}>
+                    Your browser does not support audio playback.
+                  </audio>
+                  {item.caption && <div className="media-caption">{item.caption}</div>}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasAttachments && (
+        <div className="message-attachments">
+          {msg.attachments.map(item => (
+            <div key={item.id} className="attachment-chip">
+              <span>Attached</span>
+              <span className="attachment-name">{item.name}</span>
+              <span className="attachment-size">{formatBytes(item.size)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasCollabSteps && (
+        <CollaborationPanel steps={msg.collaborationSteps} isStreaming={isStreaming} />
+      )}
+
+      {/* Collapsible reasoning note */}
+      {hasThinking && (
+        <details className="thinking-block">
+          <summary>
+            <span className="think-arrow">▶</span>
+            Reasoning note
+          </summary>
+          <div className="thinking-content">
+            The model supplied private reasoning internally. MindPortalix hides that raw trace and shows the final answer plus the collaboration summary above.
+          </div>
+        </details>
+      )}
+
+      {isStreaming && msg.content === "" && !hasCollabSteps ? (
+        <div className="typing-indicator">
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
+          <div className="typing-dot"></div>
+          {activeAgent && <span className="typing-status">{activeAgent}</span>}
+        </div>
+      ) : isApiKeyError(msg.content) ? (
+        <div className="error-banner">
+          <strong>OpenRouter API key invalid</strong>
+          Your <code>OPENROUTER_API_KEY</code> in <code>.env</code> is missing or revoked.
+          Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{color:"#f87171"}}>openrouter.ai/keys</a>, update your <code>.env</code>, and restart the server.
+        </div>
+      ) : isRateLimitError(msg.content) ? (
+        <div className="error-banner" style={{borderColor:"rgba(163,230,53,0.2)", background:"rgba(163,230,53,0.05)", color:"var(--text2)"}}>
+          <strong style={{color:"var(--accent)"}}>Free models are busy right now</strong>
+          All available free models hit their rate limit. Wait a few seconds and send your message again.
+        </div>
+      ) : isUser ? (
+        <div className="msg-content user">{msg.content}</div>
+      ) : (
+        <>
+          <div
+            className="markdown"
+            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+          />
+          {isStreaming && msg.content !== "" && <span className="cursor-blink" style={{ display: "inline-block", marginTop: 4 }} />}
+        </>
+      )}
+
+      {!isUser && !isStreaming && msg.content && (
+        <div className="msg-actions">
+          <button className={`copy-btn ${copied ? "copied" : ""}`} onClick={copy}>
+            {copied ? <><CheckIcon /> Copied</> : <><CopyIcon /> Copy</>}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── History Drawer ────────────────────────────────────────────────────
+function HistoryDrawer({ conversations, activeId, onSelect, onNew, onDelete, onClose }) {
+  return (
+    <>
+      <div className="drawer-overlay" onClick={onClose} />
+      <div className="drawer">
+        <div className="drawer-header">
+          <span className="drawer-title">Conversations</span>
+          <button className="drawer-close" onClick={onClose}>×</button>
+        </div>
+        <button className="drawer-new" onClick={() => { onNew(); onClose(); }}>+ New conversation</button>
+        <div className="drawer-list">
+          {conversations.length === 0 && (
+            <div style={{ padding: "12px", fontSize: "12px", color: "var(--text3)", fontFamily: "var(--mono)" }}>
+              No conversations yet
+            </div>
+          )}
+          {conversations.map(c => (
+            <div key={c.id} className={`conv-item ${c.id === activeId ? "active" : ""}`}
+              onClick={() => { onSelect(c.id); onClose(); }}>
+              <div className="conv-title">{c.title || "Conversation"}</div>
+              <button className="conv-del" title="Delete" onClick={e => { e.stopPropagation(); onDelete(c.id); }}>×</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Chat Screen ───────────────────────────────────────────────────────
+function ChatScreen({ session, onLogout }) {
+  const [messages, setMessages] = useState([]);
+  const [conversations, setConversations] = useState([]);
+  const [activeConvId, setActiveConvId] = useState(null);
+  const [input, setInput] = useState("");
+  const [attachments, setAttachments] = useState([]);
+  const [sending, setSending] = useState(false);
+  const [streamingId, setStreamingId] = useState(null);
+  const [activeAgent, setActiveAgent] = useState(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const messagesEndRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  useEffect(() => { fetchConversations(); }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, sending]);
+
+  function apiFetch(url, opts = {}) {
+    return fetch(url, {
+      ...opts,
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${session.access_token}`,
+        ...(opts.headers ?? {})
+      }
+    });
+  }
+
+  async function fetchConversations() {
+    const res = await apiFetch("/api/conversations").catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setConversations(data.conversations ?? []);
+    }
+  }
+
+  async function selectConversation(id) {
+    setActiveConvId(id);
+    const res = await apiFetch(`/api/conversations/${id}/messages`).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setMessages(data.messages.map(m => ({
+        id: m.id, role: m.role, content: m.content,
+        agents: m.agent ? [m.agent] : [],
+        model: m.model
+      })));
+    }
+  }
+
+  async function newConversation() {
+    setActiveConvId(null);
+    setMessages([]);
+    setAttachments([]);
+  }
+
+  async function deleteConversation(id) {
+    await apiFetch(`/api/conversations/${id}`, { method: "DELETE" }).catch(() => null);
+    setConversations(c => c.filter(x => x.id !== id));
+    if (activeConvId === id) { setActiveConvId(null); setMessages([]); }
+  }
+
+  async function handleClear() {
+    if (!activeConvId) { setMessages([]); return; }
+    await apiFetch(`/api/conversations/${activeConvId}`, { method: "DELETE" }).catch(() => null);
+    setConversations(c => c.filter(x => x.id !== activeConvId));
+    setActiveConvId(null);
+    setMessages([]);
+    setAttachments([]);
+  }
+
+  async function handleLogout() {
+    const sb = await getSupabase();
+    await sb?.auth.signOut();
+    onLogout();
+  }
+
+  function autoResize(e) {
+    e.target.style.height = "auto";
+    e.target.style.height = Math.min(e.target.scrollHeight, 160) + "px";
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  }
+
+  async function handlePaste(e) {
+    const clipboard = e.clipboardData;
+    const pastedText = clipboard?.getData("text/plain") ?? "";
+
+    if (pastedText.length > 500) {
+      e.preventDefault();
+      setAttachments(prev => [...prev, createTextAttachment(pastedText)]);
+      return;
+    }
+
+    const files = Array.from(clipboard?.files ?? []);
+    const textFiles = files.filter(file => file.type.startsWith("text/") || /\.(txt|md|json|csv|log|js|ts|tsx|jsx|html|css)$/i.test(file.name));
+    if (!textFiles.length) return;
+
+    e.preventDefault();
+    const nextAttachments = await Promise.all(textFiles.map(async file => (
+      createTextAttachment(await file.text(), file.name || "Pasted file")
+    )));
+    setAttachments(prev => [...prev, ...nextAttachments]);
+  }
+
+  function removeAttachment(id) {
+    setAttachments(prev => prev.filter(item => item.id !== id));
+  }
+
+  /** Yield so React commits between SSE events (otherwise one network chunk batches all updates). */
+  async function yieldAfterSseEvent(eventName) {
+    if (eventName === "agent_output_delta" || eventName === "delta") {
+      await new Promise(requestAnimationFrame);
+      return;
+    }
+    await new Promise(r => setTimeout(r, 0));
+  }
+
+  async function sendMessage() {
+    const text = input.trim();
+    if ((!text && attachments.length === 0) || sending) return;
+    const pendingAttachments = attachments;
+    const messageForModel = buildMessageWithAttachments(text, pendingAttachments);
+    const visibleText = text || "Attached text file";
+    setInput("");
+    setAttachments([]);
+    if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
+    setSending(true);
+    setActiveAgent(null);
+
+    const userId = `msg_${Date.now()}`;
+    const asstId = `asst_${Date.now()}`;
+
+    setMessages(prev => [
+      ...prev,
+      { id: userId, role: "user", content: visibleText, attachments: pendingAttachments.map(({ id, name, size }) => ({ id, name, size })) },
+      {
+        id: asstId,
+        role: "assistant",
+        content: "",
+        agents: [],
+        modelPlan: [],
+        thinking: null,
+        media: [],
+        collaborationSteps: initialStreamingCollabSteps()
+      }
+    ]);
+    setStreamingId(asstId);
+
+    try {
+      const res = await apiFetch("/api/chat", {
+        method: "POST",
+        body: JSON.stringify({ message: messageForModel, conversationId: activeConvId, stream: true })
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Request failed" }));
+        setMessages(prev => prev.map(m => m.id === asstId
+          ? { ...m, content: `Error: ${err.error}` } : m));
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let content = "";
+      let agents = [];
+      let modelPlan = [];
+      let collaborationSteps = [];
+      let convId = activeConvId;
+      let currentEvent = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop();
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            const raw = line.slice(6).trim();
+            if (!raw) continue;
+            let ev;
+            try { ev = JSON.parse(raw); } catch { continue; }
+
+            const sseEvent = currentEvent;
+
+            switch (sseEvent) {
+              case "route":
+                agents = ev.agents ?? [];
+                collaborationSteps = buildRouteSteps(agents, ev.primary);
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, agents, collaborationSteps } : m));
+                break;
+              case "agent_start":
+                setActiveAgent(ev.agent);
+                if (ev.agent) {
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: "Streaming specialist output — chain-of-thought and plan appear as they are generated.",
+                    status: "running",
+                    meta: "running",
+                    output: ""
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "agent_output_delta":
+                if (ev.agent && ev.delta != null) {
+                  const aid = `agent:${ev.agent}`;
+                  collaborationSteps = collaborationSteps.map(step =>
+                    step.id === aid
+                      ? { ...step, output: (step.output || "") + ev.delta, status: "running", meta: "streaming" }
+                      : step
+                  );
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "agent_output_reset":
+                if (ev.agent) {
+                  const rid = `agent:${ev.agent}`;
+                  collaborationSteps = collaborationSteps.map(step =>
+                    step.id === rid ? { ...step, output: "" } : step
+                  );
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "agent_done":
+                setActiveAgent(null);
+                if (ev.agent && ev.model) {
+                  modelPlan = [...modelPlan, { agent: ev.agent, model: ev.model }];
+                  const existingStep = collaborationSteps.find(step => step.id === `agent:${ev.agent}`);
+                  const priorDetail = existingStep?.detail ? `${existingStep.detail} ` : "";
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: `${priorDetail}Completed with ${shortModel(ev.model)}.`,
+                    status: "done",
+                    meta: "done"
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, modelPlan, collaborationSteps } : m));
+                }
+                break;
+              case "agent_detail":
+                if (ev.agent) {
+                  collaborationSteps = upsertCollabStep(collaborationSteps, {
+                    id: `agent:${ev.agent}`,
+                    agent: ev.agent,
+                    title: formatAgentName(ev.agent),
+                    detail: buildAgentDetailText(ev),
+                    output: ev.output,
+                    status: ev.error ? "error" : "running",
+                    meta: ev.error ? "error" : "details"
+                  });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "thinking":
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "reasoning",
+                  title: "Reasoning captured",
+                  detail: "Private reasoning was separated from the answer before display.",
+                  status: "done",
+                  meta: "hidden"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, thinking: ev.thinking || (ev.hidden ? "hidden" : null), collaborationSteps } : m));
+                break;
+              case "review":
+                const reviewIssues = ev.issues && ev.issues.length
+                  ? ` Issues: ${ev.issues.join(" ")}`
+                  : " No issues found.";
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "review",
+                  title: "Reviewer check",
+                  detail: `Quality score ${ev.score ?? "?"}/10, threshold ${ev.threshold ?? 7}, confidence ${ev.confidence ?? "unknown"}.${reviewIssues}`,
+                  status: ev.passed === false ? "error" : "done",
+                  meta: ev.passed === false ? "needs work" : "passed"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, review: ev, collaborationSteps } : m));
+                break;
+              case "media":
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, media: [...(m.media ?? []), { type: ev.mediaType, url: ev.url, caption: ev.caption }] }
+                  : m));
+                break;
+              case "delta":
+                content += ev.delta ?? "";
+                setMessages(prev => prev.map(m => m.id === asstId ? { ...m, content } : m));
+                break;
+              case "conversation":
+                convId = ev.conversationId;
+                setActiveConvId(convId);
+                break;
+              case "done":
+                // Prefer modelPlan from done event (complete list)
+                if (ev.modelPlan && ev.modelPlan.length) modelPlan = ev.modelPlan;
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "final",
+                  title: "Final response ready",
+                  detail: "The collaboration trace is collapsed by default and can be expanded again.",
+                  status: "done",
+                  meta: "done"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, agents, modelPlan, review: ev.review ?? m.review, collaborationSteps } : m));
+                if (convId) fetchConversations();
+                break;
+              case "error":
+                content = `Error: ${ev.message ?? "Request failed"}`;
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "error",
+                  title: "Generation error",
+                  detail: ev.message ?? "The request failed before a final answer was produced.",
+                  status: "error",
+                  meta: "error"
+                });
+                setMessages(prev => prev.map(m => m.id === asstId
+                  ? { ...m, content: `Error: ${ev.message ?? "Request failed"}`, collaborationSteps } : m));
+                break;
+            }
+            await yieldAfterSseEvent(sseEvent);
+            currentEvent = null;
+          }
+        }
+      }
+
+      if (!content) {
+        setMessages(prev => prev.map(m => m.id === asstId
+          ? { ...m, content: "No response received.", agents } : m));
+      }
+    } catch (err) {
+      setMessages(prev => prev.map(m => m.id === asstId
+        ? { ...m, content: `Connection error: ${err.message}` } : m));
+    } finally {
+      setSending(false);
+      setStreamingId(null);
+      setActiveAgent(null);
+    }
+  }
+
+  const showEmpty = messages.length === 0 && !sending;
+
+  return (
+    <div className="chat-wrap">
+      {drawerOpen && (
+        <HistoryDrawer
+          conversations={conversations}
+          activeId={activeConvId}
+          onSelect={selectConversation}
+          onNew={newConversation}
+          onDelete={deleteConversation}
+          onClose={() => setDrawerOpen(false)}
+        />
+      )}
+
+      <div className="chat-header">
+        <div className="header-logo">
+          <span className="header-logo-dot"></span>
+          MindPortalix
+        </div>
+        <div className="header-actions">
+          <button className="btn-ghost" onClick={() => setDrawerOpen(true)}
+            style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <HistoryIcon /> History
+          </button>
+          {messages.length > 0 && (
+            <button className="btn-ghost danger" onClick={handleClear}>Clear</button>
+          )}
+          <button className="btn-ghost" onClick={handleLogout}>Sign out</button>
+        </div>
+      </div>
+
+      {showEmpty ? (
+        <div className="empty-state">
+          <div className="empty-icon">
+            <BrainIcon />
+          </div>
+          <h3>Start a conversation</h3>
+          <p>Ask anything. Specialist agents route your request to the right model.</p>
+        </div>
+      ) : (
+        <div className="messages-area">
+          {messages.map(msg => (
+            <Message
+              key={msg.id}
+              msg={msg}
+              isStreaming={msg.id === streamingId}
+              activeAgent={msg.id === streamingId ? activeAgent : null}
+            />
+          ))}
+          <div ref={messagesEndRef} style={{ height: 1 }} />
+        </div>
+      )}
+
+      <div className="input-area">
+        {attachments.length > 0 && (
+          <div className="attachment-tray">
+            {attachments.map(item => (
+              <div key={item.id} className="attachment-chip">
+                <span>Attached</span>
+                <span className="attachment-name">{item.name}</span>
+                <span className="attachment-size">{formatBytes(item.size)}</span>
+                <button
+                  className="attachment-remove"
+                  type="button"
+                  onClick={() => removeAttachment(item.id)}
+                  aria-label={`Remove ${item.name}`}
+                  disabled={sending}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="input-box">
+          <textarea
+            ref={textareaRef}
+            placeholder="Message…"
+            value={input}
+            onChange={e => { setInput(e.target.value); autoResize(e); }}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            rows={1}
+            disabled={sending}
+          />
+          <button className="send-btn" onClick={sendMessage}
+            disabled={(!input.trim() && attachments.length === 0) || sending}>
+            <SendIcon />
+          </button>
+        </div>
+        <div className="input-hint">↵ to send · shift+↵ for newline · pastes over 500 chars attach automatically</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Root App ──────────────────────────────────────────────────────────
+function App() {
+  const [session, setSession] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  useEffect(() => {
+    getSupabase().then(sb => {
+      if (!sb) { setAuthChecked(true); return; }
+      sb.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setAuthChecked(true);
+      });
+      const { data: { subscription } } = sb.auth.onAuthStateChange((_ev, session) => {
+        setSession(session);
+      });
+      return () => subscription.unsubscribe();
+    });
+  }, []);
+
+  if (!authChecked) {
+    return (
+      <div className="loading-splash">
+        <div className="splash-dots">
+          <div className="splash-dot"></div>
+          <div className="splash-dot"></div>
+          <div className="splash-dot"></div>
+        </div>
+      </div>
+    );
+  }
+
+  return session
+    ? <ChatScreen session={session} onLogout={() => setSession(null)} />
+    : <AuthScreen onAuth={setSession} />;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+</script>
+</body>
+</html>

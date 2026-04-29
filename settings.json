@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "npm test",
+      "npm run test:agents",
+      "npm run test:integration",
+      "npm run test:hooks"
+    ],
+    "deny": [
+      "git reset --hard",
+      "git push --force",
+      "rm -rf"
+    ]
+  },
+  "hooks": {
+    "preToolUse": "hooks/pre-tool-use.js",
+    "postToolUse": "hooks/post-tool-use.js",
+    "onError": "hooks/on-error.js",
+    "onAgentComplete": "hooks/on-agent-complete.js",
+    "onMemoryWrite": "hooks/on-memory-write.js"
+  }
+}

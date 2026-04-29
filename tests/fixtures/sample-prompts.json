@@ -1,0 +1,14 @@
+[
+  {
+    "input": "Research the latest free OpenRouter models and cite sources",
+    "expectedPrimary": "researcher"
+  },
+  {
+    "input": "Implement a Supabase memory API and add tests",
+    "expectedPrimary": "coder"
+  },
+  {
+    "input": "Remember that I prefer concise Markdown answers",
+    "expectedPrimary": "memory"
+  }
+]
