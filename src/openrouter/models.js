@@ -217,3 +217,151 @@ export async function callWithFallback({ role, messages, maxAttempts = 5 }) {
 
   throw lastError ?? new Error("All free text models exhausted");
 }
+
+/**
+ * Stream chat completions with the same fallback strategy as callWithFallback.
+ * Invokes onChunk with each text delta. Calls onReset before retrying another model
+ * if any deltas were already emitted for the failed attempt.
+ */
+export async function callWithFallbackStream({
+  role,
+  messages,
+  maxAttempts = 5,
+  onChunk,
+  onReset,
+}) {
+  if (typeof onChunk !== "function") {
+    throw new Error("callWithFallbackStream requires onChunk");
+  }
+
+  const models = await getFreeModels("text");
+  const prefs = ROLE_PREFERENCES[role] ?? [];
+  const UNRELIABLE = ["ling", "minimax", "ernie", "baichuan"];
+  const isUnreliable = (id) => UNRELIABLE.some((kw) => id.toLowerCase().includes(kw));
+
+  const ranked = [];
+  for (const kw of prefs) {
+    const match = models.find(
+      (id) => id.toLowerCase().includes(kw) && !ranked.includes(id) && !isUnreliable(id)
+    );
+    if (match) ranked.push(match);
+  }
+  for (const id of models) {
+    if (!ranked.includes(id) && !isUnreliable(id)) ranked.push(id);
+  }
+  for (const id of models) {
+    if (!ranked.includes(id)) ranked.push(id);
+  }
+
+  const attempts = ranked.slice(0, maxAttempts);
+  let lastError;
+
+  for (const model of attempts) {
+    let emitted = false;
+    const safeChunk = (d) => {
+      emitted = true;
+      onChunk(d);
+    };
+
+    try {
+      const res = await fetch(`${BASE_URL()}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          "HTTP-Referer": process.env.APP_URL ?? "https://mindportalix.app",
+          "X-Title": "MindPortalix",
+        },
+        body: JSON.stringify({ model, messages, temperature: 0.3, stream: true }),
+      });
+
+      if (!res.ok) {
+        const body = await res.text();
+        if (res.status === 401) {
+          throw new Error(
+            `Invalid OpenRouter API key (401). Update OPENROUTER_API_KEY in .env. Details: ${body}`
+          );
+        }
+        lastError = new Error(`${model} failed (${res.status}): ${body}`);
+        console.warn(`[models:stream] ${model} → ${res.status}, trying next…`);
+        if (res.status === 429) await sleep(800);
+        continue;
+      }
+
+      const content = await accumulateOpenRouterSseStream(res.body, safeChunk);
+
+      if (!content.trim()) {
+        if (emitted) onReset?.();
+        lastError = new Error(`${model} returned an empty streamed response`);
+        console.warn(`[models:stream] ${model} → empty stream, trying next…`);
+        continue;
+      }
+
+      return { content, model };
+    } catch (err) {
+      if (emitted) onReset?.();
+      if (err.message.includes("401") || err.message.includes("Invalid OpenRouter API key")) {
+        throw err;
+      }
+      lastError = err;
+      console.warn(`[models:stream] ${model} threw: ${err.message}, trying next…`);
+    }
+  }
+
+  throw lastError ?? new Error("All free text models exhausted");
+}
+
+/**
+ * Parse OpenRouter/OpenAI-style SSE from a fetch Response body; accumulate full text
+ * and invoke onChunk for each content delta.
+ */
+export async function accumulateOpenRouterSseStream(body, onChunk) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let full = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith("data:")) continue;
+      const data = trimmed.slice(5).trim();
+      if (data === "[DONE]") continue;
+      try {
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content;
+        if (delta) {
+          full += delta;
+          onChunk(delta);
+        }
+      } catch {
+        /* ignore malformed chunks */
+      }
+    }
+  }
+
+  const rest = buffer.trim();
+  if (rest.startsWith("data:")) {
+    const data = rest.slice(5).trim();
+    if (data && data !== "[DONE]") {
+      try {
+        const json = JSON.parse(data);
+        const delta = json.choices?.[0]?.delta?.content;
+        if (delta) {
+          full += delta;
+          onChunk(delta);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  return full;
+}

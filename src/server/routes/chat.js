@@ -39,6 +39,9 @@ router.post("/", requireAuth, async (req, res) => {
   res.setHeader("Connection", "keep-alive");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
+  if (res.socket && !res.socket.destroyed) {
+    res.socket.setNoDelay(true);
+  }
 
   let closed = false;
   req.on("close", () => { closed = true; });
@@ -46,7 +49,10 @@ router.post("/", requireAuth, async (req, res) => {
   function send(event, data) {
     if (closed) return;
     try {
-      res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+      const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+      res.write(payload, "utf8", () => {
+        if (typeof res.flush === "function") res.flush();
+      });
     } catch {
       closed = true;
     }
@@ -83,7 +89,13 @@ router.post("/", requireAuth, async (req, res) => {
     for (const agentId of specialistIds) {
       if (closed) break;
       send("agent_start", { agent: agentId });
-      const result = await runSpecialistAgent({ agentId, input: message, memories });
+      const result = await runSpecialistAgent({
+        agentId,
+        input: message,
+        memories,
+        onStreamChunk: (delta) => send("agent_output_delta", { agent: agentId, delta }),
+        onStreamReset: () => send("agent_output_reset", { agent: agentId }),
+      });
       specialistResults.push(result);
       const detail = buildAgentDetail(result);
       send("agent_detail", detail);

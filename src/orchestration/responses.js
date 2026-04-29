@@ -1,5 +1,5 @@
 import { getAgent } from "../agents/registry.js";
-import { callWithFallback, bestModelForModality } from "../openrouter/models.js";
+import { callWithFallback, callWithFallbackStream, bestModelForModality } from "../openrouter/models.js";
 import { generateImage, generateSpeech, generateMusic } from "../openrouter/media.js";
 
 const SYSTEM_PROMPTS = {
@@ -80,7 +80,7 @@ export function parseContent(raw) {
  *   mediaUrl:  URL or data-URI for the generated media (when present)
  *   content:   text description / caption for the media, or the full text response
  */
-export async function runSpecialistAgent({ agentId, input, memories = [] }) {
+export async function runSpecialistAgent({ agentId, input, memories = [], onStreamChunk, onStreamReset } = {}) {
   const agent = getAgent(agentId);
 
   // ── Image generation agent ─────────────────────────────────────────────
@@ -106,7 +106,19 @@ export async function runSpecialistAgent({ agentId, input, memories = [] }) {
     { role: "user", content: input },
   ];
 
+  const useStream = typeof onStreamChunk === "function";
+
   try {
+    if (useStream) {
+      const { content, model } = await callWithFallbackStream({
+        role: agentId,
+        messages,
+        maxAttempts: 5,
+        onChunk: onStreamChunk,
+        onReset: onStreamReset,
+      });
+      return { agent: agentId, model, content };
+    }
     const { content, model } = await callWithFallback({ role: agentId, messages, maxAttempts: 5 });
     return { agent: agentId, model, content };
   } catch (err) {

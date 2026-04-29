@@ -520,6 +520,18 @@
     max-height: 220px;
     overflow-y: auto;
   }
+  .collab-cursor {
+    display: inline-block;
+    margin-left: 1px;
+    color: var(--accent);
+    animation: collab-cursor-blink 0.85s step-end infinite;
+    vertical-align: text-bottom;
+    font-weight: 300;
+  }
+  @keyframes collab-cursor-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
 
   /* ── Model pills (agent → model transparency) ─────────────────── */
   .model-pills {
@@ -693,6 +705,18 @@ function formatAgentName(agent) {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function initialStreamingCollabSteps() {
+  return [
+    {
+      id: "preparing",
+      title: "Connecting",
+      detail: "Routing your request. Specialist chain-of-thought streams in the panel below as the model generates it.",
+      status: "running",
+      meta: "…"
+    }
+  ];
 }
 
 function buildRouteSteps(agents = [], primary) {
@@ -911,7 +935,17 @@ function CollaborationPanel({ steps = [], isStreaming }) {
               <div className="collab-main">
                 <div className="collab-title">{step.title}</div>
                 {step.detail && <div className="collab-detail">{step.detail}</div>}
-                {step.output && <div className="collab-output">{step.output}</div>}
+                {(step.output ||
+                  (isStreaming && step.agent && (step.status === "running" || step.status === "pending"))) && (
+                  <div className="collab-output">
+                    {step.output}
+                    {isStreaming &&
+                      step.agent &&
+                      (step.status === "running" || step.status === "pending") && (
+                      <span className="collab-cursor" aria-hidden="true">▍</span>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="collab-meta">{step.meta ?? step.status}</div>
             </div>
@@ -1024,7 +1058,7 @@ function Message({ msg, isStreaming, activeAgent }) {
         </details>
       )}
 
-      {isStreaming && msg.content === "" ? (
+      {isStreaming && msg.content === "" && !hasCollabSteps ? (
         <div className="typing-indicator">
           <div className="typing-dot"></div>
           <div className="typing-dot"></div>
@@ -1211,6 +1245,15 @@ function ChatScreen({ session, onLogout }) {
     setAttachments(prev => prev.filter(item => item.id !== id));
   }
 
+  /** Yield so React commits between SSE events (otherwise one network chunk batches all updates). */
+  async function yieldAfterSseEvent(eventName) {
+    if (eventName === "agent_output_delta" || eventName === "delta") {
+      await new Promise(requestAnimationFrame);
+      return;
+    }
+    await new Promise(r => setTimeout(r, 0));
+  }
+
   async function sendMessage() {
     const text = input.trim();
     if ((!text && attachments.length === 0) || sending) return;
@@ -1229,7 +1272,16 @@ function ChatScreen({ session, onLogout }) {
     setMessages(prev => [
       ...prev,
       { id: userId, role: "user", content: visibleText, attachments: pendingAttachments.map(({ id, name, size }) => ({ id, name, size })) },
-      { id: asstId, role: "assistant", content: "", agents: [], modelPlan: [], thinking: null, media: [], collaborationSteps: [] }
+      {
+        id: asstId,
+        role: "assistant",
+        content: "",
+        agents: [],
+        modelPlan: [],
+        thinking: null,
+        media: [],
+        collaborationSteps: initialStreamingCollabSteps()
+      }
     ]);
     setStreamingId(asstId);
 
@@ -1272,7 +1324,9 @@ function ChatScreen({ session, onLogout }) {
             let ev;
             try { ev = JSON.parse(raw); } catch { continue; }
 
-            switch (currentEvent) {
+            const sseEvent = currentEvent;
+
+            switch (sseEvent) {
               case "route":
                 agents = ev.agents ?? [];
                 collaborationSteps = buildRouteSteps(agents, ev.primary);
@@ -1286,10 +1340,31 @@ function ChatScreen({ session, onLogout }) {
                     id: `agent:${ev.agent}`,
                     agent: ev.agent,
                     title: formatAgentName(ev.agent),
-                    detail: "Specialist is working on its part of the response.",
+                    detail: "Streaming specialist output — chain-of-thought and plan appear as they are generated.",
                     status: "running",
-                    meta: "running"
+                    meta: "running",
+                    output: ""
                   });
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "agent_output_delta":
+                if (ev.agent && ev.delta != null) {
+                  const aid = `agent:${ev.agent}`;
+                  collaborationSteps = collaborationSteps.map(step =>
+                    step.id === aid
+                      ? { ...step, output: (step.output || "") + ev.delta, status: "running", meta: "streaming" }
+                      : step
+                  );
+                  setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                }
+                break;
+              case "agent_output_reset":
+                if (ev.agent) {
+                  const rid = `agent:${ev.agent}`;
+                  collaborationSteps = collaborationSteps.map(step =>
+                    step.id === rid ? { ...step, output: "" } : step
+                  );
                   setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
                 }
                 break;
@@ -1389,6 +1464,7 @@ function ChatScreen({ session, onLogout }) {
                   ? { ...m, content: `Error: ${ev.message ?? "Request failed"}`, collaborationSteps } : m));
                 break;
             }
+            await yieldAfterSseEvent(sseEvent);
             currentEvent = null;
           }
         }
