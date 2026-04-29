@@ -249,9 +249,11 @@ export function reviewDraft({ draft, route, threshold = 7 }) {
     score -= 2;
   }
 
+  score = Math.max(0, Math.min(10, score));
+
   return {
-    score: Math.max(0, Math.min(10, score)),
-    passed: score >= threshold && issues.length === 0,
+    score,
+    passed: score > threshold,
     threshold,
     issues,
     confidence: score >= 8 ? "high" : score >= 6 ? "medium" : "low"

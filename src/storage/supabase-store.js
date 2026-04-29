@@ -1,16 +1,31 @@
 import { createClient } from "@supabase/supabase-js";
 
-function getSupabaseClient() {
+function isSecretPlaceholder(secretKey) {
+  return !secretKey || secretKey.includes("your-key") || secretKey === "undefined";
+}
+
+/**
+ * Server-side DB access must satisfy RLS (`auth.uid()`).
+ * With the anon/publishable key, PostgREST needs the user's JWT on each request.
+ * With `SUPABASE_SECRET_KEY` (service role), RLS is bypassed — no user JWT required.
+ *
+ * @param {string | null | undefined} accessToken User JWT from `Authorization` (Bearer); required for anon key.
+ */
+function getSupabaseClient(accessToken = null) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const secretKey = process.env.SUPABASE_SECRET_KEY ?? "";
-  const isPlaceholder = !secretKey || secretKey.includes("your-key") || secretKey === "undefined";
-  const key = isPlaceholder
+  const usingPublishableOnly = isSecretPlaceholder(secretKey);
+  const key = usingPublishableOnly
     ? process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
     : secretKey;
   if (!url || !key) {
     throw new Error("NEXT_PUBLIC_SUPABASE_URL and a Supabase key are required");
   }
-  return createClient(url, key);
+  const options = { auth: { persistSession: false } };
+  if (usingPublishableOnly && accessToken) {
+    options.global = { headers: { Authorization: `Bearer ${accessToken}` } };
+  }
+  return createClient(url, key, options);
 }
 
 /**
@@ -42,12 +57,14 @@ function warnSchemaMissing() {
 }
 
 export class SupabaseMemoryStore {
-  constructor() {
+  /** @param {string | null | undefined} accessToken User JWT when using anon key + RLS */
+  constructor(accessToken = null) {
+    this._accessToken = accessToken ?? null;
     this._client = null;
   }
 
   get client() {
-    if (!this._client) this._client = getSupabaseClient();
+    if (!this._client) this._client = getSupabaseClient(this._accessToken);
     return this._client;
   }
 

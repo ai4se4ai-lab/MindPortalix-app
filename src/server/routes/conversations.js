@@ -3,11 +3,11 @@ import { requireAuth } from "../middleware/auth.js";
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 
 const router = Router();
-const store = new SupabaseMemoryStore();
 
 router.use(requireAuth);
 
 router.get("/", async (req, res) => {
+  const store = new SupabaseMemoryStore(req.token);
   try {
     const conversations = await store.listConversations(req.user.id);
     res.json({ conversations });
@@ -17,6 +17,7 @@ router.get("/", async (req, res) => {
 });
 
 router.post("/", async (req, res) => {
+  const store = new SupabaseMemoryStore(req.token);
   const { title } = req.body;
   try {
     const conversation = await store.createConversation({ userId: req.user.id, title });
@@ -27,6 +28,7 @@ router.post("/", async (req, res) => {
 });
 
 router.get("/:id/messages", async (req, res) => {
+  const store = new SupabaseMemoryStore(req.token);
   try {
     const messages = await store.getMessages(req.params.id);
     res.json({ messages });
@@ -36,6 +38,7 @@ router.get("/:id/messages", async (req, res) => {
 });
 
 router.delete("/:id", async (req, res) => {
+  const store = new SupabaseMemoryStore(req.token);
   try {
     await store.deleteConversation(req.params.id);
     res.json({ deleted: true });

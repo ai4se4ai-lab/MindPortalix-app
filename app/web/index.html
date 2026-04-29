@@ -368,6 +368,29 @@
   .error-banner strong { display: block; margin-bottom: 4px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
   .error-banner code { background: rgba(248,113,113,0.1); border-radius: 3px; padding: 1px 5px; }
 
+  .low-confidence-banner {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    background: rgba(234,179,8,0.08);
+    border: 1px solid rgba(234,179,8,0.35);
+    border-radius: 8px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.5;
+  }
+  .low-confidence-banner strong { color: #eab308; margin-right: 6px; }
+  .low-confidence-icon { flex-shrink: 0; font-size: 16px; line-height: 1.2; }
+  .collab-warn-icon {
+    display: inline-block;
+    margin-right: 6px;
+    color: #eab308;
+    font-size: 12px;
+    vertical-align: middle;
+  }
+
   /* ── Loading splash ───────────────────────────────────── */
   .loading-splash {
     height: 100vh; display: flex; align-items: center; justify-content: center;
@@ -898,7 +921,7 @@ function AuthScreen({ onAuth }) {
 }
 
 // ── Message component ─────────────────────────────────────────────────
-function CollaborationPanel({ steps = [], isStreaming }) {
+function CollaborationPanel({ steps = [], isStreaming, executorLowConfidence }) {
   const [isOpen, setIsOpen] = useState(isStreaming);
 
   useEffect(() => {
@@ -933,7 +956,12 @@ function CollaborationPanel({ steps = [], isStreaming }) {
             <div key={step.id} className={`collab-step ${step.status ?? "pending"}`}>
               <span className="collab-dot"></span>
               <div className="collab-main">
-                <div className="collab-title">{step.title}</div>
+                <div className="collab-title">
+                  {executorLowConfidence && step.agent === "executor" && (
+                    <span className="collab-warn-icon" title="Low reviewer confidence on this output">⚠</span>
+                  )}
+                  {step.title}
+                </div>
                 {step.detail && <div className="collab-detail">{step.detail}</div>}
                 {(step.output ||
                   (isStreaming && step.agent && (step.status === "running" || step.status === "pending"))) && (
@@ -1042,7 +1070,11 @@ function Message({ msg, isStreaming, activeAgent }) {
       )}
 
       {hasCollabSteps && (
-        <CollaborationPanel steps={msg.collaborationSteps} isStreaming={isStreaming} />
+        <CollaborationPanel
+          steps={msg.collaborationSteps}
+          isStreaming={isStreaming}
+          executorLowConfidence={Boolean(msg.review?.lowConfidence)}
+        />
       )}
 
       {/* Collapsible reasoning note */}
@@ -1080,6 +1112,15 @@ function Message({ msg, isStreaming, activeAgent }) {
         <div className="msg-content user">{msg.content}</div>
       ) : (
         <>
+          {msg.review?.lowConfidence && (
+            <div className="low-confidence-banner" role="status">
+              <span className="low-confidence-icon" aria-hidden="true">⚠</span>
+              <div>
+                <strong>Low confidence</strong>
+                <span> Review quality stayed at or below {msg.review.threshold ?? 8}/10 after several planner revisions. The reply below uses the strongest attempt but may be incomplete or unreliable.</span>
+              </div>
+            </div>
+          )}
           <div
             className="markdown"
             dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
@@ -1432,6 +1473,10 @@ function ChatScreen({ session, onLogout }) {
               case "delta":
                 content += ev.delta ?? "";
                 setMessages(prev => prev.map(m => m.id === asstId ? { ...m, content } : m));
+                break;
+              case "delta_reset":
+                content = "";
+                setMessages(prev => prev.map(m => m.id === asstId ? { ...m, content: "" } : m));
                 break;
               case "conversation":
                 convId = ev.conversationId;
