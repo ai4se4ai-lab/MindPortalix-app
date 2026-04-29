@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { classifyIntent } from "../../orchestration/intent.js";
-import { runSpecialistAgent, reviewDraft, parseContent } from "../../orchestration/responses.js";
+import {
+  runSpecialistAgent,
+  reviewDraft,
+  parseContent,
+  buildExecutorUserMessage,
+} from "../../orchestration/responses.js";
 import { summarizeForMemory, InMemoryMemoryStore } from "../../storage/memory-store.js";
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
@@ -60,7 +65,7 @@ router.post("/", requireAuth, async (req, res) => {
 
   try {
     const route = classifyIntent(message);
-    send("route", { agents: route.agents, primary: route.primary });
+    send("route", { agents: routeAgentsForUi(route), primary: route.primary });
 
     const memories = await store.search({ userId, query: message }).catch(() => []);
     const specialistIds = route.agents.filter(id => id !== "reviewer");
@@ -111,12 +116,30 @@ router.post("/", requireAuth, async (req, res) => {
 
     if (closed) { res.end(); return; }
 
-    const primaryResult = specialistResults.find(r => r.agent === route.primary)
-      ?? specialistResults[0];
-    const finalContent = primaryResult?.content ?? "I could not generate a response.";
+    const isMediaOnly =
+      specialistResults.length > 0 && specialistResults.every((r) => r.mediaType);
 
-    // For pure media responses skip the text stream entirely
-    const isMediaOnly = specialistResults.every(r => r.mediaType);
+    let executorResult = null;
+    if (shouldRunExecutor(specialistResults, isMediaOnly) && !closed) {
+      send("agent_start", { agent: "executor" });
+      const executorInput = buildExecutorUserMessage(message, specialistResults);
+      executorResult = await runSpecialistAgent({
+        agentId: "executor",
+        input: executorInput,
+        memories,
+        onStreamChunk: (delta) => send("agent_output_delta", { agent: "executor", delta }),
+        onStreamReset: () => send("agent_output_reset", { agent: "executor" }),
+      });
+      specialistResults.push(executorResult);
+      send("agent_detail", buildAgentDetail(executorResult));
+      send("agent_done", { agent: "executor", model: executorResult.model });
+    }
+
+    const primaryResult =
+      executorResult ??
+      specialistResults.find((r) => r.agent === route.primary) ??
+      specialistResults[0];
+    const finalContent = primaryResult?.content ?? "I could not generate a response.";
 
     // review is used both inside the block and in the `done` event — hoist it
     let review = { score: 10, passed: true, confidence: "high", issues: [] };
@@ -153,7 +176,7 @@ router.post("/", requireAuth, async (req, res) => {
           userId,
           role: "assistant",
           content: persistContent,
-          agent: route.primary,
+          agent: executorResult ? "executor" : route.primary,
           model: primaryResult?.model,
         });
       } catch (dbErr) {
@@ -204,6 +227,32 @@ function streamWords(text, onWord) {
 }
 
 export default router;
+
+/** UI route list: show plan executor before reviewer when it will run */
+function routeAgentsForUi(route) {
+  const agents = [...route.agents];
+  if (shouldPreplanExecutor(route) && !agents.includes("executor")) {
+    const ri = agents.indexOf("reviewer");
+    if (ri >= 0) agents.splice(ri, 0, "executor");
+    else agents.push("executor");
+  }
+  return agents;
+}
+
+function shouldPreplanExecutor(route) {
+  const specialists = route.agents.filter((a) => a !== "reviewer");
+  if (specialists.length === 0) return false;
+  if (specialists.includes("planner")) return true;
+  return specialists.length >= 2;
+}
+
+function shouldRunExecutor(specialistResults, isMediaOnly) {
+  if (isMediaOnly) return false;
+  const text = specialistResults.filter((r) => !r.mediaType);
+  if (text.length === 0) return false;
+  if (text.some((r) => r.agent === "planner")) return true;
+  return text.length >= 2;
+}
 
 function buildAgentDetail(result) {
   const { thinking, answer } = parseContent(result.content);

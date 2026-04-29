@@ -71,6 +71,17 @@ export const AGENT_REGISTRY = Object.freeze({
     responsibilities: ["Break work into milestones", "Sequence tasks", "Identify dependencies"],
     keywords: ["plan", "roadmap", "timeline", "milestone", "strategy", "steps"]
   },
+  executor: {
+    id: "executor",
+    name: "Plan executor",
+    model: "google/gemma-3-8b-it",
+    responsibilities: [
+      "Execute an approved plan and prior specialist output",
+      "Produce the single user-facing assistant reply",
+      "Integrate research and context without duplicating the raw plan"
+    ],
+    keywords: []
+  },
   formatter: {
     id: "formatter",
     name: "Formatter",

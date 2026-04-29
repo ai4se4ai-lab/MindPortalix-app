@@ -53,6 +53,7 @@ const ROLE_PREFERENCES = {
   memory:        ["llama-3.1-8b", "gemma-3-8b", "mistral", "gemma", "qwen"],
   governor:      ["qwen-2.5-72b", "qwen", "llama", "gemma", "mistral"],
   formatter:     ["phi", "gemma-3-8b", "gemma", "mistral", "llama"],
+  executor:      ["gemma-3-12b", "qwen-2.5-72b", "gemma-3-8b", "llama-3.1-8b", "gemma", "mistral"],
   reviewer:      ["qwen-2.5-72b", "deepseek-r1", "gemma-3-12b", "llama-3.1-8b", "gemma"],
   orchestrator:  ["gemini-2.0-flash", "qwen-2.5-72b", "gemma-3-12b", "gemma-3-8b", "llama-3.1-8b"],
   // media agents — model selection handled differently, but keep here for fallback labels

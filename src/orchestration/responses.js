@@ -8,7 +8,8 @@ const SYSTEM_PROMPTS = {
   writer: `You are a writing specialist for MindPortalix. Draft clear, well-structured content in clean Markdown. Adapt tone and format to the audience. Do not output internal tokens or step markers.`,
   memory: `You are a memory specialist for MindPortalix. Surface relevant past context concisely in clean Markdown. Do not output internal tokens or step markers.`,
   governor: `You are a safety specialist for MindPortalix. Briefly report on safety, PII, and policy concerns in clean Markdown. Do not output internal tokens or step markers.`,
-  planner: `You are a planning specialist for MindPortalix. Provide a clear, structured plan in clean Markdown with numbered steps or bullet points. Do not output internal tokens, bracket markers like [[A0]], or step notation like [:].`,
+  planner: `You are a planning specialist for MindPortalix. Output ONLY a structured work plan in Markdown (numbered steps, milestones, dependencies). Do NOT write the full user-facing answer, essay, or conversational reply here—that is produced by a separate executor agent. Planning only: no greetings-as-final-answer, no long prose aimed at the user. Do not output internal tokens, bracket markers like [[A0]], or step notation like [:].`,
+  executor: `You are the plan executor for MindPortalix. You receive the user's request and specialist outputs (plan, research, code notes, memory, etc.). Write the ONE message the user will read: direct, helpful, and complete. Execute the plan—deliver the substance. Do not duplicate the plan as a second full outline unless the user explicitly asked only for a plan. Use clean Markdown. Do not output internal tokens or step markers.`,
   formatter: `You are a formatting specialist for MindPortalix. Return clean, well-formatted Markdown. Do not output internal tokens or step markers.`,
   orchestrator: `You are MindPortalix, an intelligent AI assistant. Be helpful, accurate, and clear. Respond in clean Markdown. Do not output internal reasoning tokens or step markers.`
 };
@@ -71,6 +72,35 @@ export function parseContent(raw) {
 
   // Nothing useful to extract — show as-is with no thinking panel
   return { thinking: null, answer: raw };
+}
+
+/**
+ * Compose the user message for the executor agent from prior specialist results.
+ */
+export function buildExecutorUserMessage(userMessage, specialistResults) {
+  const blocks = specialistResults
+    .filter((r) => !r.mediaType)
+    .map((r) => {
+      const { answer } = parseContent(r.content);
+      const body = (answer || r.content || "").trim();
+      return `### ${r.agent} (specialist output)\n${body}`;
+    })
+    .filter(Boolean)
+    .join("\n\n");
+
+  const specialistSection =
+    blocks.trim().length > 0 ? blocks : "(No prior text specialist output.)";
+
+  return [
+    "The user asked:",
+    '"""',
+    userMessage,
+    '"""',
+    "",
+    "Write the single polished assistant reply the user will see. Use the specialist outputs below—including any plan from the planner—as guidance, but deliver the direct answer to the user. Do not paste the plan again as a duplicate outline unless they only asked for a plan.",
+    "",
+    specialistSection,
+  ].join("\n");
 }
 
 /**

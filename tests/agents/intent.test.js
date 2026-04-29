@@ -7,7 +7,7 @@ import { getAgent, listAgents } from "../../src/agents/registry.js";
 describe("agent registry", () => {
   it("contains all MVP agents with models", () => {
     const agents = listAgents();
-    assert.equal(agents.length, 11); // 9 text agents + image_generator + audio_generator
+    assert.equal(agents.length, 12); // text agents (incl. executor) + image_generator + audio_generator
     assert.ok(agents.every((agent) => agent.id && agent.model));
     assert.equal(getAgent("reviewer").name, "Reviewer");
   });
