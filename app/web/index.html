@@ -1286,13 +1286,13 @@ function ChatScreen({ session, onLogout }) {
     setAttachments(prev => prev.filter(item => item.id !== id));
   }
 
-  /** Yield so React commits between SSE events (otherwise one network chunk batches all updates). */
+  /** Yield so React paints between SSE events (avoids batching many steps in one frame). */
   async function yieldAfterSseEvent(eventName) {
     if (eventName === "agent_output_delta" || eventName === "delta") {
       await new Promise(requestAnimationFrame);
       return;
     }
-    await new Promise(r => setTimeout(r, 0));
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
   }
 
   async function sendMessage() {
@@ -1345,7 +1345,7 @@ function ChatScreen({ session, onLogout }) {
       let content = "";
       let agents = [];
       let modelPlan = [];
-      let collaborationSteps = [];
+      let collaborationSteps = initialStreamingCollabSteps();
       let convId = activeConvId;
       let currentEvent = null;
 
@@ -1368,6 +1368,24 @@ function ChatScreen({ session, onLogout }) {
             const sseEvent = currentEvent;
 
             switch (sseEvent) {
+              case "phase":
+                collaborationSteps = upsertCollabStep(collaborationSteps, {
+                  id: "preparing",
+                  title: ev.stage === "connected" ? "Connected" : "Preparing",
+                  detail: ev.detail ?? "",
+                  status: "running",
+                  meta: ev.stage ?? ""
+                });
+                setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                break;
+              case "pipeline":
+                collaborationSteps = collaborationSteps.map(step =>
+                  step.id === "route"
+                    ? { ...step, meta: ev.detail ?? step.meta ?? "…" }
+                    : step
+                );
+                setMessages(prev => prev.map(m => m.id === asstId ? { ...m, collaborationSteps } : m));
+                break;
               case "route":
                 agents = ev.agents ?? [];
                 collaborationSteps = buildRouteSteps(agents, ev.primary);

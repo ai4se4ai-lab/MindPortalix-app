@@ -12,6 +12,11 @@ import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
 import { getFreeModels } from "../../openrouter/models.js";
 
+/** Yield one event-loop tick so SSE writes flush before the next heavy await. */
+function yieldTick() {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 const router = Router();
 
 /** Reviewer target: scores must be strictly greater than this (e.g. 9–10 when value is 8). */
@@ -68,21 +73,39 @@ router.post("/", requireAuth, async (req, res) => {
   }
 
   try {
+    send("phase", { stage: "connected", detail: "Connected — classifying intent…" });
+    await yieldTick();
+
     const route = classifyIntent(message);
     send("route", { agents: routeAgentsForUi(route), primary: route.primary });
+    await yieldTick();
+
+    send("pipeline", { detail: "Searching memory…" });
+    await yieldTick();
 
     const memories = await store.search({ userId, query: message }).catch(() => []);
+
+    send("pipeline", {
+      detail: memories.length
+        ? `Memory ready · ${memories.length} snippet${memories.length === 1 ? "" : "s"}`
+        : "Memory ready · no prior context",
+    });
+    await yieldTick();
+
     const specialistIds = route.agents.filter(id => id !== "reviewer");
 
     // Persist user message
     let savedConvId = conversationId ?? null;
     if (store instanceof SupabaseMemoryStore) {
+      send("pipeline", { detail: "Saving conversation…" });
+      await yieldTick();
       try {
         if (!savedConvId) {
           const convo = await store.createConversation({ userId, title: message.slice(0, 60) });
           if (convo?.id) {
             savedConvId = convo.id;
             send("conversation", { conversationId: savedConvId });
+            await yieldTick();
           }
         }
         if (savedConvId) {
@@ -93,11 +116,15 @@ router.post("/", requireAuth, async (req, res) => {
       }
     }
 
+    send("pipeline", { detail: "Calling AI specialists…" });
+    await yieldTick();
+
     // Run specialist agents — stream their output to the collaboration panel
     const specialistResults = [];
     for (const agentId of specialistIds) {
       if (closed) break;
       send("agent_start", { agent: agentId });
+      await yieldTick();
       const result = await runSpecialistAgent({
         agentId,
         input: message,
@@ -108,7 +135,9 @@ router.post("/", requireAuth, async (req, res) => {
       specialistResults.push(result);
       const detail = buildAgentDetail(result);
       send("agent_detail", detail);
+      await yieldTick();
       send("agent_done", { agent: agentId, model: result.model });
+      await yieldTick();
 
       // Immediately forward media results so the client can render them
       if (result.mediaType === "image" && result.mediaUrl) {
@@ -130,6 +159,7 @@ router.post("/", requireAuth, async (req, res) => {
 
     if (shouldRunExecutor(specialistResults, isMediaOnly) && !closed) {
       send("agent_start", { agent: "executor" });
+      await yieldTick();
       const executorInput = buildExecutorUserMessage(message, specialistResults);
 
       let deltaFilter = makeThinkFilter((text) => send("delta", { delta: text }));
@@ -155,7 +185,9 @@ router.post("/", requireAuth, async (req, res) => {
 
       specialistResults.push(executorResult);
       send("agent_detail", buildAgentDetail(executorResult));
+      await yieldTick();
       send("agent_done", { agent: "executor", model: executorResult.model });
+      await yieldTick();
 
       // Emit thinking event immediately if reasoning tokens were detected
       const { thinking } = parseContent(executorResult.content ?? "");
@@ -210,6 +242,7 @@ router.post("/", requireAuth, async (req, res) => {
           attempt,
           maxAttempts: MAX_PLANNER_QUALITY_ATTEMPTS,
         });
+        await yieldTick();
 
         if (snap.review.score > CHAT_QUALITY_THRESHOLD) {
           chosenPack = pack;
@@ -483,6 +516,7 @@ async function replanPlannerAndExecutor({
 
   send("agent_start", { agent: "planner", replan: true, attempt: attempt + 1 });
   send("agent_output_reset", { agent: "planner" });
+  await yieldTick();
 
   const newPlanner = await runSpecialistAgent({
     agentId: "planner",
@@ -497,12 +531,15 @@ async function replanPlannerAndExecutor({
   specialistResults.push(...rebuilt);
 
   send("agent_detail", buildAgentDetail(newPlanner));
+  await yieldTick();
   send("agent_done", { agent: "planner", model: newPlanner.model });
+  await yieldTick();
 
   if (isClosed()) return;
 
   send("agent_start", { agent: "executor", replan: true, attempt: attempt + 1 });
   send("agent_output_reset", { agent: "executor" });
+  await yieldTick();
 
   // Reset the main bubble before re-streaming the revised answer
   if (liveStreamToMain) {
@@ -536,7 +573,9 @@ async function replanPlannerAndExecutor({
 
   specialistResults.push(newExec);
   send("agent_detail", buildAgentDetail(newExec));
+  await yieldTick();
   send("agent_done", { agent: "executor", model: newExec.model });
+  await yieldTick();
 
   if (liveStreamToMain) {
     const { thinking } = parseContent(newExec.content ?? "");
