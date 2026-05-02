@@ -11,6 +11,7 @@ import { summarizeForMemory, InMemoryMemoryStore } from "../../storage/memory-st
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
 import { getFreeModels } from "../../openrouter/models.js";
+import { broadcast } from "../../monitor/broadcaster.js";
 
 /** Yield one event-loop tick so SSE writes flush before the next heavy await. */
 function yieldTick() {
@@ -62,6 +63,7 @@ router.post("/", requireAuth, async (req, res) => {
 
   function send(event, data) {
     if (closed) return;
+    broadcast(event, data);
     try {
       const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
       res.write(payload, "utf8", () => {

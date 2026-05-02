@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\babaei\\\\Desktop\\\\Research\\\\BIZ\\\\MindPortalix-app\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem *)",
+      "Bash(xargs wc *)",
+      "Bash(xargs cat *)",
+      "Bash(npm test *)"
+    ]
+  }
+}

@@ -17,6 +17,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -107,7 +108,7 @@
 
   /* ── Chat layout ──────────────────────────────────────── */
   .chat-wrap {
-    height: 100vh; display: flex; flex-direction: column; align-items: center;
+    flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
   }
   .chat-header {
     width: 100%; max-width: 700px;
@@ -669,6 +670,131 @@
     .auth-wrap { padding: 20px 16px; }
     .btn-ghost { padding: 5px 9px; font-size: 10px; }
   }
+
+  /* ── App shell with left nav ─────────────────────────── */
+  .app-shell {
+    display: flex; height: 100vh; width: 100vw; overflow: hidden;
+  }
+  .main-content {
+    flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column;
+  }
+  /* flex: 1 + min-height: 0 lets percentage-height children resolve correctly */
+  .page-slot { flex: 1; min-height: 0; overflow: hidden; flex-direction: column; }
+
+  /* ── Left nav sidebar ────────────────────────────────── */
+  .left-nav {
+    width: 48px; flex-shrink: 0;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; gap: 4px; z-index: 10;
+  }
+  .nav-logo {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+  }
+  .nav-logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .nav-btn {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: none; border: 1px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text3);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .nav-btn:hover { background: var(--bg3); color: var(--text2); border-color: var(--border); }
+  .nav-btn.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(163,230,53,0.35); }
+  .nav-btn-tooltip {
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+    padding: 4px 8px; border-radius: 5px; white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100;
+  }
+  .nav-btn:hover .nav-btn-tooltip { opacity: 1; }
+
+  /* ── Observatory layout ─────────────────────────────── */
+  .obs-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+  .obs-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .obs-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .obs-active-label {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .obs-active-agent { color: var(--accent); font-weight: 500; }
+  .obs-status {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+  }
+  .obs-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); transition: background 0.3s; }
+  .obs-status-dot.live { background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+
+  /* ── Three-panel resizable layout ──────────────────── */
+  .obs-panels { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+  .obs-panel { display: flex; flex-direction: column; overflow: hidden; min-width: 100px; }
+  .obs-panel-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  }
+  .obs-panel-header-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); }
+  .obs-panel-body { flex: 1; overflow: auto; padding: 12px; }
+  .obs-divider {
+    width: 4px; background: var(--border); cursor: col-resize; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .obs-divider:hover, .obs-divider.dragging { background: var(--accent); }
+
+  /* ── Mermaid diagram ────────────────────────────────── */
+  .mermaid-container { width: 100%; overflow: auto; }
+  .mermaid-container svg { max-width: 100%; height: auto; }
+
+  /* ── Context category boxes ─────────────────────────── */
+  .ctx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ctx-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px; transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  .ctx-box.active {
+    border-color: rgba(163,230,53,0.6);
+    box-shadow: 0 0 0 1px rgba(163,230,53,0.15), 0 0 12px rgba(163,230,53,0.08);
+  }
+  .ctx-box-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+  }
+  .ctx-box-label-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); transition: background 0.25s; }
+  .ctx-box.active .ctx-box-label-dot { background: var(--accent); }
+  .ctx-box-items { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ctx-tag {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font-family: var(--mono); font-size: 9px; color: var(--text2);
+  }
+  .ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+
+  /* ── Directory tree ─────────────────────────────────── */
+  .dir-tree { font-family: var(--mono); font-size: 11px; }
+  .dir-node { padding: 1px 0; }
+  .dir-node-row {
+    display: flex; align-items: center; gap: 5px; padding: 3px 6px;
+    border-radius: 5px; cursor: default; transition: background 0.12s;
+  }
+  .dir-node-row:hover { background: var(--bg3); }
+  .dir-node-row.highlighted { background: var(--accent-dim); color: var(--accent); }
+  .dir-node-icon { color: var(--text3); font-size: 10px; width: 12px; text-align: center; flex-shrink: 0; }
+  .dir-node-name { color: var(--text2); }
+  .dir-node-name.special { color: var(--accent); }
+  .dir-children { padding-left: 16px; border-left: 1px solid var(--border); margin-left: 5px; }
+  .obs-loading {
+    display: flex; align-items: center; justify-content: center; height: 100%;
+    color: var(--text3); font-family: var(--mono); font-size: 12px; gap: 8px;
+  }
 </style>
 </head>
 <body>
@@ -845,6 +971,24 @@ function HistoryIcon() {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="8" cy="8" r="6.5"/>
       <path d="M8 4.5V8l2.5 2.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function ChatBubbleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function TelescopeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 7l4-2 10 5-4 2L2 7z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 10l4-2 4 2-4 2-4-2z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 5l2 5" strokeLinecap="round"/>
+      <circle cx="8" cy="13" r="3"/>
+      <path d="M8 16v3M6 19h4" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -1644,10 +1788,366 @@ function ChatScreen({ session, onLogout }) {
   );
 }
 
+// ── Context Observatory ───────────────────────────────────────────────
+
+function useMonitorSSE() {
+  const [activeAgent, setActiveAgent] = React.useState(null);
+  const [activeRoute, setActiveRoute] = React.useState([]);
+  const [connected, setConnected] = React.useState(false);
+
+  React.useEffect(() => {
+    const es = new EventSource("/api/monitor/live");
+    es.onopen = () => setConnected(true);
+    es.onerror = () => setConnected(false);
+
+    const onAgentStart = (e) => {
+      try { setActiveAgent(JSON.parse(e.data).agent ?? null); } catch {}
+    };
+    const onAgentDone = () => setActiveAgent(null);
+    const onRoute = (e) => {
+      try { setActiveRoute(JSON.parse(e.data).agents ?? []); } catch {}
+    };
+    const onDone = () => { setActiveAgent(null); setActiveRoute([]); };
+
+    es.addEventListener("agent_start", onAgentStart);
+    es.addEventListener("agent_done", onAgentDone);
+    es.addEventListener("route", onRoute);
+    es.addEventListener("done", onDone);
+
+    return () => {
+      es.removeEventListener("agent_start", onAgentStart);
+      es.removeEventListener("agent_done", onAgentDone);
+      es.removeEventListener("route", onRoute);
+      es.removeEventListener("done", onDone);
+      es.close();
+    };
+  }, []);
+
+  return { activeAgent, activeRoute, connected };
+}
+
+function buildMermaidDiagram(activeAgent) {
+  const nodeId = (id) => id.replace(/_/g, "");
+  const label = (id, display) => display ? `${nodeId(id)}["${display}"]` : nodeId(id);
+
+  const highlight = activeAgent
+    ? `  style ${nodeId(activeAgent)} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`
+    : "";
+
+  return [
+    "flowchart TD",
+    "  userinput([User Input]) --> orchestrator",
+    "  orchestrator --> researcher",
+    "  orchestrator --> memory",
+    "  orchestrator --> coder",
+    "  orchestrator --> writer",
+    "  orchestrator --> governor",
+    "  orchestrator --> planner",
+    "  orchestrator --> formatter",
+    `  orchestrator --> ${label("image_generator","Image Gen")}`,
+    `  orchestrator --> ${label("audio_generator","Audio Gen")}`,
+    "  researcher --> executor",
+    "  memory --> executor",
+    "  coder --> executor",
+    "  writer --> executor",
+    "  planner --> executor",
+    "  formatter --> executor",
+    "  executor --> reviewer",
+    "  reviewer --> response([Response])",
+    highlight,
+  ].filter(Boolean).join("\n");
+}
+
+function useMermaid(containerRef, diagramStr) {
+  React.useEffect(() => {
+    if (!containerRef.current || !window.mermaid) return;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      themeVariables: {
+        background: "#141414",
+        primaryColor: "#1c1c1c",
+        primaryTextColor: "#e8e8e3",
+        primaryBorderColor: "#5e5e5e",
+        lineColor: "#5e5e5e",
+        nodeBorder: "#5e5e5e",
+        clusterBkg: "#141414",
+        titleColor: "#e8e8e3",
+        edgeLabelBackground: "#0d0d0d",
+      }
+    });
+    const id = "mermaid-obs-" + Date.now();
+    window.mermaid.render(id, diagramStr).then(({ svg }) => {
+      if (containerRef.current) containerRef.current.innerHTML = svg;
+    }).catch(() => {});
+  }, [diagramStr]);
+}
+
+function AgentDiagramPanel({ activeAgent }) {
+  const containerRef = React.useRef(null);
+  const diagram = buildMermaidDiagram(activeAgent);
+  useMermaid(containerRef, diagram);
+  return (
+    <div className="obs-panel-body">
+      <div className="mermaid-container" ref={containerRef} />
+    </div>
+  );
+}
+
+const CONTEXT_CATEGORIES = {
+  Skills:  ["agent-orchestration","memory-compression","model-selection","openrouter","prompt-engineering","supabase-auth"],
+  Agents:  ["orchestrator","researcher","reviewer","memory","coder","writer","governor","planner","executor","formatter","image_generator","audio_generator"],
+  Rules:   ["api-design","general","styling","supabase","testing"],
+  MCPs:    ["github","supabase"],
+  Hooks:   ["on-agent-complete","on-error","on-memory-write","post-tool-use","pre-tool-use"],
+  Memory:  ["MEMORY.md"],
+};
+
+const AGENT_CONTEXT_MAP = {
+  orchestrator:    ["Skills","Agents","Rules"],
+  researcher:      ["Skills","MCPs","Memory"],
+  memory:          ["Memory","Skills"],
+  coder:           ["Skills","Rules","Hooks"],
+  writer:          ["Skills","Rules"],
+  governor:        ["Rules","Hooks"],
+  planner:         ["Skills","Agents"],
+  executor:        ["Skills","Agents","Memory"],
+  reviewer:        ["Rules","Skills"],
+  formatter:       ["Rules","Skills"],
+  image_generator: ["Skills"],
+  audio_generator: ["Skills"],
+};
+
+function ContextInjectionPanel({ activeAgent }) {
+  const activeCategories = activeAgent ? (AGENT_CONTEXT_MAP[activeAgent] ?? []) : [];
+  return (
+    <div className="obs-panel-body">
+      <div className="ctx-grid">
+        {Object.entries(CONTEXT_CATEGORIES).map(([category, items]) => {
+          const isActive = activeCategories.includes(category);
+          return (
+            <div key={category} className={`ctx-box${isActive ? " active" : ""}`}>
+              <div className="ctx-box-label">
+                <span className="ctx-box-label-dot" />
+                {category}
+              </div>
+              <div className="ctx-box-items">
+                {items.map(item => (
+                  <span key={item} className={`ctx-tag${isActive ? " lit" : ""}`}>{item}</span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function DirectoryPanel({ activeAgent }) {
+  const [tree, setTree] = React.useState(null);
+  const [expanded, setExpanded] = React.useState(new Set([".", ""]));
+
+  React.useEffect(() => {
+    fetch("/api/monitor/directory")
+      .then(r => r.json())
+      .then(d => setTree(d.tree))
+      .catch(() => {});
+  }, []);
+
+  const highlightedPaths = React.useMemo(() => {
+    if (!activeAgent) return new Set();
+    const paths = new Set(["CLAUDE.md"]);
+    if (activeAgent === "memory") paths.add("MEMORY.md");
+    if (["researcher","coder","writer","executor"].includes(activeAgent)) {
+      paths.add("skills"); paths.add("rules");
+    }
+    if (["orchestrator","governor","planner"].includes(activeAgent)) {
+      paths.add("agents"); paths.add("hooks");
+    }
+    return paths;
+  }, [activeAgent]);
+
+  function toggleExpand(path) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(path) ? next.delete(path) : next.add(path);
+      return next;
+    });
+  }
+
+  function renderNode(node) {
+    const isSpecial = node.name === "CLAUDE.md" || node.name === "MEMORY.md";
+    const isHighlighted = highlightedPaths.has(node.name) || highlightedPaths.has(node.path);
+    const isExpanded = expanded.has(node.path);
+
+    if (node.type === "file") {
+      return (
+        <div key={node.path} className="dir-node">
+          <div className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}>
+            <span className="dir-node-icon">·</span>
+            <span className={`dir-node-name${isSpecial ? " special" : ""}`}>{node.name}</span>
+          </div>
+        </div>
+      );
+    }
+
+    const hasChildren = node.children && node.children.length > 0;
+    return (
+      <div key={node.path} className="dir-node">
+        <div
+          className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}
+          onClick={() => toggleExpand(node.path)}
+          style={{ cursor: hasChildren ? "pointer" : "default" }}
+        >
+          <span className="dir-node-icon">{hasChildren ? (isExpanded ? "▾" : "▸") : "·"}</span>
+          <span className="dir-node-name">{node.name}</span>
+        </div>
+        {isExpanded && hasChildren && (
+          <div className="dir-children">
+            {node.children.map(child => renderNode(child))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!tree) return <div className="obs-loading"><span>Loading directory…</span></div>;
+  return (
+    <div className="obs-panel-body">
+      <div className="dir-tree">{renderNode(tree)}</div>
+    </div>
+  );
+}
+
+function useResizablePanels(defaultPercents) {
+  const [widths, setWidths] = React.useState(defaultPercents);
+  const dragging = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const [draggingIdx, setDraggingIdx] = React.useState(null);
+
+  function onMouseDown(dividerIndex, e) {
+    e.preventDefault();
+    dragging.current = { dividerIndex, startX: e.clientX, startWidths: [...widths] };
+    setDraggingIdx(dividerIndex);
+
+    function onMouseMove(ev) {
+      if (!dragging.current || !containerRef.current) return;
+      const { dividerIndex: di, startX, startWidths } = dragging.current;
+      const containerW = containerRef.current.getBoundingClientRect().width;
+      const deltaPercent = ((ev.clientX - startX) / containerW) * 100;
+      const newWidths = [...startWidths];
+      const newLeft = Math.max(10, Math.min(80, newWidths[di] + deltaPercent));
+      const diff = newLeft - newWidths[di];
+      const newRight = Math.max(10, newWidths[di + 1] - diff);
+      newWidths[di] = newLeft;
+      newWidths[di + 1] = newRight;
+      setWidths(newWidths);
+    }
+
+    function onMouseUp() {
+      dragging.current = null;
+      setDraggingIdx(null);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  return { widths, containerRef, onMouseDown, draggingIdx };
+}
+
+function ContextObservatory() {
+  const { activeAgent, connected } = useMonitorSSE();
+  const { widths, containerRef, onMouseDown, draggingIdx } = useResizablePanels([30, 40, 30]);
+
+  return (
+    <div className="obs-wrap">
+      <div className="obs-header">
+        <span className="obs-title">Context Observatory</span>
+        {activeAgent && (
+          <div className="obs-active-label">
+            Active: <span className="obs-active-agent">{activeAgent}</span>
+          </div>
+        )}
+        <div className="obs-status">
+          <span className={`obs-status-dot${connected ? " live" : ""}`} />
+          {connected ? "live" : "connecting…"}
+        </div>
+      </div>
+
+      <div className="obs-panels" ref={containerRef}>
+        <div className="obs-panel" style={{ width: `${widths[0]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Agent Architecture
+            {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
+          </div>
+          <AgentDiagramPanel activeAgent={activeAgent} />
+        </div>
+
+        <div
+          className={`obs-divider${draggingIdx === 0 ? " dragging" : ""}`}
+          onMouseDown={e => onMouseDown(0, e)}
+        />
+
+        <div className="obs-panel" style={{ width: `${widths[1]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Context Injection
+            {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
+          </div>
+          <ContextInjectionPanel activeAgent={activeAgent} />
+        </div>
+
+        <div
+          className={`obs-divider${draggingIdx === 1 ? " dragging" : ""}`}
+          onMouseDown={e => onMouseDown(1, e)}
+        />
+
+        <div className="obs-panel" style={{ width: `${widths[2]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Directory Hierarchy
+          </div>
+          <DirectoryPanel activeAgent={activeAgent} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LeftNav({ page, onNavigate }) {
+  return (
+    <nav className="left-nav" aria-label="Main navigation">
+      <div className="nav-logo"><span className="nav-logo-dot" /></div>
+      <button
+        className={`nav-btn${page === "chat" ? " active" : ""}`}
+        onClick={() => onNavigate("chat")}
+        aria-label="Chat"
+      >
+        <ChatBubbleIcon />
+        <span className="nav-btn-tooltip">Chat</span>
+      </button>
+      <button
+        className={`nav-btn${page === "observatory" ? " active" : ""}`}
+        onClick={() => onNavigate("observatory")}
+        aria-label="Context Observatory"
+      >
+        <TelescopeIcon />
+        <span className="nav-btn-tooltip">Observatory</span>
+      </button>
+    </nav>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function App() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [page, setPage] = useState("chat");
 
   useEffect(() => {
     getSupabase().then(sb => {
@@ -1675,9 +2175,21 @@ function App() {
     );
   }
 
-  return session
-    ? <ChatScreen session={session} onLogout={() => setSession(null)} />
-    : <AuthScreen onAuth={setSession} />;
+  if (!session) return <AuthScreen onAuth={setSession} />;
+
+  return (
+    <div className="app-shell">
+      <LeftNav page={page} onNavigate={setPage} />
+      <div className="main-content">
+        <div className="page-slot" style={{ display: page === "chat" ? "flex" : "none" }}>
+          <ChatScreen session={session} onLogout={() => setSession(null)} />
+        </div>
+        <div className="page-slot" style={{ display: page === "observatory" ? "flex" : "none" }}>
+          <ContextObservatory />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
