@@ -194,7 +194,9 @@ router.get("/files", requireAuth, async (req, res) => {
     .not("path", "like", "_context/%")
     .order("path");
   if (error) return res.status(500).json({ error: error.message });
-  res.json({ files: data ?? [] });
+  // JS-level guard: the SQL LIKE treats '_' as a wildcard, so belt-and-suspenders here
+  const files = (data ?? []).filter(f => !f.path.startsWith("_context/"));
+  res.json({ files });
 });
 
 router.get("/files/*", requireAuth, async (req, res) => {
@@ -353,7 +355,7 @@ router.get("/context", requireAuth, async (req, res) => {
     const allFiles = files.data ?? [];
     const claudeMd  = allFiles.find(f => f.path === "CLAUDE.md")?.content ?? "";
     const memoryMd  = allFiles.find(f => f.path === "MEMORY.md")?.content ?? "";
-    const resources = allFiles.filter(f => !f.is_directory && f.path !== "CLAUDE.md" && f.path !== "MEMORY.md");
+    const resources = allFiles.filter(f => !f.is_directory && !f.path.startsWith("_context/") && f.path !== "CLAUDE.md" && f.path !== "MEMORY.md");
 
     res.json({
       mermaidDiagram:   agentCfg.data?.mermaid_diagram ?? DEFAULT_MERMAID,

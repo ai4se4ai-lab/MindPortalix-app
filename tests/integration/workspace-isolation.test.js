@@ -514,3 +514,299 @@ describe("Workspace isolation — two independent users", () => {
       "Bob's beta-project must survive Alice's deletion");
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Regression tests — the three bugs reported after initial implementation
+// ════════════════════════════════════════════════════════════════════════════
+
+describe("Bug regression: _context/ items must never appear in directory listings", () => {
+  // Fresh store so these tests are self-contained
+  let rStore, rSrv, rPort, rUser;
+
+  before(async () => {
+    rStore = new InMemoryStore();
+    _setSupabaseFactory(() => makeClient(rStore));
+    rSrv  = await startServer(buildApp("reg-user-cccc-cccc-cccc-cccccccccccc"));
+    rPort = rSrv.address().port;
+    rUser = (m, p, b) => req(rPort, m, p, b);
+    await rUser("POST", "/init");
+  });
+
+  after(() => {
+    rSrv?.close();
+    _resetSupabaseFactory();
+  });
+
+  it("GET /files never returns _context/ paths even when they exist in DB", async () => {
+    // Simulate the old premature-auto-save bug writing empty personal copies to DB
+    const leaked = [
+      "_context/skills/model-selection",
+      "_context/skills/openrouter",
+      "_context/agents/orchestrator",
+      "_context/rules/api-design",
+    ];
+    for (const path of leaked) {
+      await rUser("PUT", `/files/${path}`, { content: "", mime_type: "text/markdown" });
+    }
+
+    const r = await rUser("GET", "/files");
+    assert.ok(r.ok);
+    const paths = r.data.files.map(f => f.path);
+
+    for (const p of leaked) {
+      assert.ok(!paths.includes(p),
+        `GET /files must NOT return ${p}`);
+    }
+    // Confirm legit files ARE still present
+    assert.ok(paths.includes("CLAUDE.md"), "CLAUDE.md must still appear");
+    assert.ok(paths.includes("MEMORY.md"), "MEMORY.md must still appear");
+  });
+
+  it("GET /files returns no path that starts with '_context/'", async () => {
+    // Write several more _context paths via the PUT endpoint
+    await rUser("PUT", "/files/_context/hooks/pre-tool-use", { content: "hook content", mime_type: "text/markdown" });
+    await rUser("PUT", "/files/_context/mcps/github",        { content: "mcp content",  mime_type: "text/markdown" });
+
+    const r = await rUser("GET", "/files");
+    const bad = r.data.files.filter(f => f.path.startsWith("_context/"));
+    assert.equal(bad.length, 0,
+      `GET /files must return 0 _context/ entries; got: ${bad.map(f => f.path).join(", ")}`);
+  });
+
+  it("GET /context files array never contains _context/ paths", async () => {
+    const r = await rUser("GET", "/context");
+    assert.ok(r.ok);
+
+    const ctxPaths = (r.data.files ?? []).map(f => f.path);
+    const bad = ctxPaths.filter(p => p.startsWith("_context/"));
+    assert.equal(bad.length, 0,
+      `GET /context files must contain 0 _context/ entries; got: ${bad.join(", ")}`);
+  });
+
+  it("GET /context resources array never contains _context/ paths", async () => {
+    const r = await rUser("GET", "/context");
+    const resPaths = (r.data.resources ?? []).map(f => f.path);
+    const bad = resPaths.filter(p => p.startsWith("_context/"));
+    assert.equal(bad.length, 0,
+      `GET /context resources must contain 0 _context/ entries; got: ${bad.join(", ")}`);
+  });
+
+  it("_context/ items are invisible to childrenAt-style prefix filtering too", async () => {
+    // childrenAt("") returns all root-level items (rest has no "/")
+    // _context/skills/model-selection → rest="_context/skills/model-selection" has "/"  → excluded
+    // _context/agents/orchestrator    → rest="_context/agents/orchestrator"    has "/"  → excluded
+    // So even if _context/ files escaped the server filter, they can't appear at root.
+    // Verify by checking GET /files returns nothing at root with _context prefix.
+    const r = await rUser("GET", "/files");
+    const rootItems = r.data.files.filter(f => !f.path.includes("/"));
+    const bad = rootItems.filter(f => f.path.startsWith("_context"));
+    assert.equal(bad.length, 0, "No _context item should appear as a root-level file");
+  });
+});
+
+describe("Bug regression: empty personal copy must fall through to server default", () => {
+  let eStore, eSrv, ePort, eUser;
+
+  before(async () => {
+    eStore = new InMemoryStore();
+    _setSupabaseFactory(() => makeClient(eStore));
+    eSrv  = await startServer(buildApp("empty-copy-dddd-dddd-dddd-dddddddddddd"));
+    ePort = eSrv.address().port;
+    eUser = (m, p, b) => req(ePort, m, p, b);
+    await eUser("POST", "/init");
+  });
+
+  after(() => {
+    eSrv?.close();
+    _resetSupabaseFactory();
+  });
+
+  it("GET /defaults/:ruleId/:item returns real file content from disk", async () => {
+    // skills/agent-orchestration.md exists on disk
+    const r = await eUser("GET", "/defaults/skills/agent-orchestration");
+    assert.ok(r.ok);
+    assert.ok((r.data.content ?? "").trim().length > 0,
+      "server default must have real content");
+  });
+
+  it("GET /defaults returns empty string for non-existent item (no error)", async () => {
+    const r = await eUser("GET", "/defaults/skills/does-not-exist-xyz");
+    assert.ok(r.ok, "endpoint must not 500 for missing items");
+    assert.equal(r.data.content, "", "missing item should return empty string");
+  });
+
+  it("empty personal copy stored by old auto-save bug is still in DB but GET /files hides it", async () => {
+    // Simulate the old premature-auto-save writing an empty personal copy
+    const putR = await eUser("PUT", "/files/_context/skills/model-selection", {
+      content: "", mime_type: "text/markdown"
+    });
+    assert.ok(putR.ok, "PUT of empty content should succeed");
+
+    // GET /files must NOT include it
+    const filesR = await eUser("GET", "/files");
+    const paths = filesR.data.files.map(f => f.path);
+    assert.ok(!paths.includes("_context/skills/model-selection"),
+      "empty personal copy must not appear in /files");
+  });
+
+  it("server default is still accessible even when an empty personal copy exists", async () => {
+    // The personal copy (_context/skills/model-selection) is empty in DB (written above)
+    // GET /defaults still reads from disk — completely independent of user DB data
+    const r = await eUser("GET", "/defaults/skills/model-selection");
+    assert.ok(r.ok);
+    assert.ok((r.data.content ?? "").trim().length > 0,
+      "server default must return real content regardless of empty personal copy in DB");
+    assert.ok(!r.data.content.includes("_context"),
+      "server default content must not reference _context paths");
+  });
+
+  it("non-empty personal copy overrides server default (happy-path personalisation)", async () => {
+    const personal = "# My Model Selection\n\nAlways pick the cheapest free model.";
+    await eUser("PUT", "/files/_context/skills/prompt-engineering", {
+      content: personal, mime_type: "text/markdown"
+    });
+
+    const read = await eUser("GET", "/files/_context/skills/prompt-engineering");
+    assert.ok(read.ok);
+    assert.equal(read.data.content, personal,
+      "non-empty personal copy must be returned as-is");
+  });
+
+  it("all skills items have real server-side defaults on disk", async () => {
+    const skillItems = ["agent-orchestration", "memory-compression", "model-selection",
+      "openrouter", "prompt-engineering", "supabase-auth"];
+
+    await Promise.all(skillItems.map(async item => {
+      const r = await eUser("GET", `/defaults/skills/${item}`);
+      assert.ok(r.ok, `GET /defaults/skills/${item} should succeed`);
+      assert.ok((r.data.content ?? "").trim().length > 0,
+        `skills/${item} must have a non-empty server default on disk`);
+    }));
+  });
+
+  it("all agent items that have .md files on disk return real content", async () => {
+    // executor, image_generator, audio_generator have no .md file — omit them
+    const agentItems = ["orchestrator", "researcher", "reviewer", "memory",
+      "coder", "writer", "governor", "planner", "formatter"];
+
+    await Promise.all(agentItems.map(async item => {
+      const r = await eUser("GET", `/defaults/agents/${item}`);
+      assert.ok(r.ok, `GET /defaults/agents/${item} should succeed`);
+      assert.ok((r.data.content ?? "").trim().length > 0,
+        `agents/${item} must have a non-empty server default on disk`);
+    }));
+  });
+
+  it("agents without .md files return empty string gracefully (no 500)", async () => {
+    // executor, image_generator, audio_generator don't have dedicated .md files yet
+    for (const item of ["executor", "image_generator", "audio_generator"]) {
+      const r = await eUser("GET", `/defaults/agents/${item}`);
+      assert.ok(r.ok, `GET /defaults/agents/${item} must not 500`);
+      // content may be empty — that is acceptable for agents without a spec file
+    }
+  });
+});
+
+describe("Bug regression: workstation directory must always seed defaults on entry", () => {
+  let wStore, wAliceSrv, wAlicePort, wAlice;
+
+  before(async () => {
+    wStore = new InMemoryStore();
+    _setSupabaseFactory(() => makeClient(wStore));
+    wAliceSrv  = await startServer(buildApp("ws-seed-eeee-eeee-eeee-eeeeeeeeeeee"));
+    wAlicePort = wAliceSrv.address().port;
+    wAlice = (m, p, b) => req(wAlicePort, m, p, b);
+    await wAlice("POST", "/init");
+  });
+
+  after(() => {
+    wAliceSrv?.close();
+    _resetSupabaseFactory();
+  });
+
+  it("POST /directories creates CLAUDE.md, MEMORY.md and 00_Resources/ inside new workstation", async () => {
+    const r = await wAlice("POST", "/directories", { name: "my-project" });
+    assert.ok(r.ok);
+
+    const files = await wAlice("GET", "/files");
+    const paths = files.data.files.map(f => f.path);
+
+    assert.ok(paths.includes("my-project"),            "workstation dir exists");
+    assert.ok(paths.includes("my-project/CLAUDE.md"),  "CLAUDE.md seeded");
+    assert.ok(paths.includes("my-project/MEMORY.md"),  "MEMORY.md seeded");
+    assert.ok(paths.includes("my-project/00_Resources"), "00_Resources seeded");
+  });
+
+  it("POST /directories is idempotent — calling it again for an existing workstation is safe", async () => {
+    // First call already happened above
+    const r2 = await wAlice("POST", "/directories", { name: "my-project" });
+    assert.ok(r2.ok, "second POST /directories must succeed");
+
+    const files = await wAlice("GET", "/files");
+    const projectFiles = files.data.files.filter(f => f.path.startsWith("my-project"));
+    const claudeCount = projectFiles.filter(f => f.path === "my-project/CLAUDE.md").length;
+    assert.equal(claudeCount, 1, "CLAUDE.md must appear exactly once (no duplicate)");
+  });
+
+  it("user edits to workstation CLAUDE.md survive a second POST /directories call", async () => {
+    // User customises CLAUDE.md
+    const customContent = "# My Project\n\nThis is my custom instructions.";
+    await wAlice("PUT", "/files/my-project/CLAUDE.md", {
+      content: customContent, mime_type: "text/markdown"
+    });
+
+    // Simulate navigateInto calling POST /directories again
+    await wAlice("POST", "/directories", { name: "my-project" });
+
+    // Custom content must be preserved (ignoreDuplicates: true)
+    const read = await wAlice("GET", "/files/my-project/CLAUDE.md");
+    assert.equal(read.data.content, customContent,
+      "user's custom CLAUDE.md content must not be overwritten by re-init");
+  });
+
+  it("pre-existing directory without CLAUDE.md gets defaults seeded by POST /directories", async () => {
+    // Simulate a workstation created before the seeding feature existed:
+    // directory entry exists but no child files
+    const store = makeClient(wStore);
+    await store.from("workspace_files").upsert(
+      { user_id: "ws-seed-eeee-eeee-eeee-eeeeeeeeeeee",
+        path: "legacy-dir", name: "legacy-dir", content: null,
+        mime_type: null, size_bytes: 0, is_directory: true,
+        updated_at: new Date().toISOString() },
+      { onConflict: "user_id,path", ignoreDuplicates: false }
+    );
+
+    // Verify it has no children yet
+    const beforeFiles = await wAlice("GET", "/files");
+    const beforePaths = beforeFiles.data.files.map(f => f.path);
+    assert.ok(beforePaths.includes("legacy-dir"), "legacy dir exists");
+    assert.ok(!beforePaths.includes("legacy-dir/CLAUDE.md"), "no CLAUDE.md yet");
+
+    // navigateInto equivalent: POST /directories seeds the defaults
+    const r = await wAlice("POST", "/directories", { name: "legacy-dir" });
+    assert.ok(r.ok);
+
+    const afterFiles = await wAlice("GET", "/files");
+    const afterPaths = afterFiles.data.files.map(f => f.path);
+    assert.ok(afterPaths.includes("legacy-dir/CLAUDE.md"),    "CLAUDE.md seeded");
+    assert.ok(afterPaths.includes("legacy-dir/MEMORY.md"),    "MEMORY.md seeded");
+    assert.ok(afterPaths.includes("legacy-dir/00_Resources"), "00_Resources seeded");
+  });
+
+  it("workstation children are visible to GET /files and filtered by childrenAt prefix", async () => {
+    // After seeding, GET /files returns nested paths correctly
+    const r = await wAlice("GET", "/files");
+    const paths = r.data.files.map(f => f.path);
+
+    // childrenAt("my-project") simulation: prefix "my-project/", rest has no "/"
+    const children = paths.filter(p => {
+      if (!p.startsWith("my-project/")) return false;
+      const rest = p.slice("my-project/".length);
+      return rest.length > 0 && !rest.includes("/");
+    });
+    assert.ok(children.includes("my-project/CLAUDE.md"),   "CLAUDE.md in children");
+    assert.ok(children.includes("my-project/MEMORY.md"),   "MEMORY.md in children");
+    assert.ok(children.includes("my-project/00_Resources"),"00_Resources in children");
+    assert.equal(children.length, 3, "exactly 3 direct children");
+  });
+});

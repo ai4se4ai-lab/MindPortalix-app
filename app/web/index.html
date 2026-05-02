@@ -2099,8 +2099,10 @@ function ContextInjectionPanel({ activeAgent, workspaceData }) {
   );
 }
 
-function buildWorkspaceTree(files) {
-  if (!files || files.length === 0) return null;
+function buildWorkspaceTree(rawFiles) {
+  // Always strip _context/ entries — they are virtual personal copies, not real workspace files
+  const files = (rawFiles ?? []).filter(f => !f.path.startsWith("_context/"));
+  if (files.length === 0) return null;
   const root = { name: "workspace", path: "", type: "dir", children: [] };
   const dirMap = { "": root };
 
@@ -2515,20 +2517,24 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     setItemContent(""); itemContentRef.current = "";
     setItemIsDefault(false);
     setItemLoading(true);
-    let content = "";
+    let content = null; // null = "no usable content yet"
     let isDefault = false;
     try {
       // 1. Try the user's personal copy
       const r = await apiFetchWorkspace(`/api/workspace/files/_context/${rule.id}/${item}`);
       if (r.ok) {
         const d = await r.json();
-        content = d.content ?? "";
-      } else {
-        // 2. No personal copy yet — load the server-side default (read-only original)
+        // Only use the personal copy if it has real content.
+        // An empty entry means the old auto-save bug wrote a blank before content loaded.
+        if ((d.content ?? "").trim().length > 0) content = d.content;
+      }
+      // 2. No personal copy (or it was blank) → load server-side default
+      if (content === null) {
         const dr = await apiFetchWorkspace(`/api/workspace/defaults/${rule.id}/${item}`);
         if (dr.ok) { const d = await dr.json(); content = d.content ?? ""; isDefault = true; }
       }
     } catch {}
+    content = content ?? "";
     setItemContent(content); itemContentRef.current = content;
     setItemIsDefault(isDefault);
     setItemLoading(false);
@@ -2583,7 +2589,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     setDirLoading(true);
     try {
       const r = await apiFetchWorkspace("/api/workspace/files");
-      if (r.ok) { const d = await r.json(); setFiles(d.files ?? []); dirLoaded.current = true; }
+      if (r.ok) { const d = await r.json(); setFiles((d.files ?? []).filter(f => !f.path.startsWith("_context/"))); dirLoaded.current = true; }
     } catch {}
     setDirLoading(false);
   }
@@ -2591,18 +2597,16 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   async function navigateInto(dir) {
     setSelectedFile(null); setFileContent("");
     setCurrentPath(dir.path);
-    // Auto-init root workstations that predate this feature (no CLAUDE.md yet)
-    const isRootWorkstation = !dir.path.includes("/");
-    if (isRootWorkstation) {
-      const hasClaude = files.some(f => f.path === `${dir.path}/CLAUDE.md`);
-      if (!hasClaude) {
-        try {
-          const r = await apiFetchWorkspace("/api/workspace/directories", {
-            method: "POST", body: JSON.stringify({ name: dir.name })
-          });
-          if (r.ok) await loadFiles();
-        } catch (e) { console.warn("[navigateInto] auto-init failed:", e.message); }
-      }
+    // Always seed root workstation defaults on entry — POST /directories is idempotent
+    // (uses ignoreDuplicates: true) so re-running it for existing workstations is safe.
+    // Avoids stale-state race where hasClaude check fires before loadFiles completes.
+    if (!dir.path.includes("/")) {
+      try {
+        const r = await apiFetchWorkspace("/api/workspace/directories", {
+          method: "POST", body: JSON.stringify({ name: dir.name })
+        });
+        if (r.ok) await loadFiles();
+      } catch (e) { console.warn("[navigateInto] init:", e.message); }
     }
   }
 
