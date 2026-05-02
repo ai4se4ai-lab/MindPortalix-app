@@ -12,6 +12,7 @@ import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
 import { getFreeModels } from "../../openrouter/models.js";
 import { broadcast } from "../../monitor/broadcaster.js";
+import { DEFAULT_CONTEXT_INJECTION } from "./workspace.js";
 
 /** Yield one event-loop tick so SSE writes flush before the next heavy await. */
 function yieldTick() {
@@ -94,6 +95,33 @@ router.post("/", requireAuth, async (req, res) => {
     });
     await yieldTick();
 
+    // Load user workspace context (CLAUDE.md, MEMORY.md, context-injection config)
+    let workspaceContext = "";
+    let contextInjection = DEFAULT_CONTEXT_INJECTION;
+    try {
+      const wsRes = await fetch(
+        `http://localhost:${process.env.PORT ?? 3000}/api/workspace/context`,
+        { headers: { Authorization: req.headers.authorization ?? "" } }
+      );
+      if (wsRes.ok) {
+        const ws = await wsRes.json();
+        contextInjection = ws.contextInjection ?? DEFAULT_CONTEXT_INJECTION;
+        const parts = [];
+        if (ws.claudeMd?.trim()) parts.push(`## Workspace Instructions\n${ws.claudeMd.trim()}`);
+        if (ws.memoryMd?.trim())  parts.push(`## User Memory\n${ws.memoryMd.trim()}`);
+        workspaceContext = parts.join("\n\n");
+        send("workspace_context", {
+          contextInjection,
+          hasClaudeMd: Boolean(ws.claudeMd?.trim()),
+          hasMemoryMd: Boolean(ws.memoryMd?.trim()),
+          resourceCount: ws.resources?.length ?? 0,
+        });
+        await yieldTick();
+      }
+    } catch {
+      // Non-fatal — proceed without workspace context
+    }
+
     const specialistIds = route.agents.filter(id => id !== "reviewer");
 
     // Persist user message
@@ -131,6 +159,7 @@ router.post("/", requireAuth, async (req, res) => {
         agentId,
         input: message,
         memories,
+        workspaceContext,
         onStreamChunk: (delta) => send("agent_output_delta", { agent: agentId, delta }),
         onStreamReset: () => send("agent_output_reset", { agent: agentId }),
       });
@@ -170,6 +199,7 @@ router.post("/", requireAuth, async (req, res) => {
         agentId: "executor",
         input: executorInput,
         memories,
+        workspaceContext,
         onStreamChunk: (chunk) => {
           send("agent_output_delta", { agent: "executor", delta: chunk });
           deltaFilter.onChunk(chunk);
@@ -264,6 +294,7 @@ router.post("/", requireAuth, async (req, res) => {
         await replanPlannerAndExecutor({
           message,
           memories,
+          workspaceContext,
           specialistIds,
           specialistResults,
           send,
@@ -493,6 +524,7 @@ function makeQualityPack(snap, specialistResults, executorResult) {
 async function replanPlannerAndExecutor({
   message,
   memories,
+  workspaceContext = "",
   specialistIds,
   specialistResults,
   send,
@@ -524,6 +556,7 @@ async function replanPlannerAndExecutor({
     agentId: "planner",
     input: plannerInput,
     memories,
+    workspaceContext,
     onStreamChunk: (delta) => send("agent_output_delta", { agent: "planner", delta }),
     onStreamReset: () => send("agent_output_reset", { agent: "planner" }),
   });
@@ -558,6 +591,7 @@ async function replanPlannerAndExecutor({
     agentId: "executor",
     input: executorInput,
     memories,
+    workspaceContext,
     onStreamChunk: (chunk) => {
       send("agent_output_delta", { agent: "executor", delta: chunk });
       if (deltaFilter) deltaFilter.onChunk(chunk);

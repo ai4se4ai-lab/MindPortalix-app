@@ -109,6 +109,7 @@
   /* ── Chat layout ──────────────────────────────────────── */
   .chat-wrap {
     flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
+    overflow: hidden;
   }
   .chat-header {
     width: 100%; max-width: 700px;
@@ -795,6 +796,120 @@
     display: flex; align-items: center; justify-content: center; height: 100%;
     color: var(--text3); font-family: var(--mono); font-size: 12px; gap: 8px;
   }
+
+  /* ── Workspace panel ─────────────────────────────────── */
+  .ws-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+  .ws-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .ws-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .ws-tabs { display: flex; gap: 2px; margin-left: auto; }
+  .ws-tab {
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    padding: 5px 12px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .ws-tab:hover { border-color: var(--border); color: var(--text2); }
+  .ws-tab.active { background: var(--accent-dim); border-color: rgba(163,230,53,0.35); color: var(--accent); }
+  .ws-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .ws-content { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+
+  /* Workspace editor */
+  .ws-section { margin-bottom: 24px; }
+  .ws-section-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .ws-section-title-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); }
+  .ws-textarea {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 12px; line-height: 1.65;
+    resize: vertical; min-height: 160px; outline: none; transition: border-color 0.15s;
+  }
+  .ws-textarea:focus { border-color: var(--accent); }
+  .ws-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .ws-btn {
+    background: var(--accent); color: #0d0d0d; border: none; border-radius: 7px;
+    padding: 7px 16px; font-family: var(--font); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .ws-btn:hover { opacity: 0.85; }
+  .ws-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ws-btn-ghost {
+    background: none; border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--text2); cursor: pointer; letter-spacing: 0.04em;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .ws-btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .ws-btn-ghost.danger:hover { border-color: rgba(239,68,68,0.4); color: #f87171; }
+  .ws-save-status {
+    font-family: var(--mono); font-size: 10px; color: var(--accent); margin-left: 4px;
+    transition: opacity 0.3s;
+  }
+  .ws-save-status.hidden { opacity: 0; }
+
+  /* Directory file browser */
+  .ws-dir-toolbar {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .ws-dir-path {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.06em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ws-file-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+  .ws-file-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    border-radius: 7px; background: var(--bg2); border: 1px solid var(--border);
+    cursor: pointer; transition: border-color 0.12s;
+  }
+  .ws-file-item:hover { border-color: var(--border-strong); }
+  .ws-file-item.selected { border-color: rgba(163,230,53,0.5); background: var(--accent-dim); }
+  .ws-file-icon { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 14px; text-align: center; flex-shrink: 0; }
+  .ws-file-name { font-family: var(--mono); font-size: 12px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-file-name.special { color: var(--accent); }
+  .ws-file-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); white-space: nowrap; }
+  .ws-file-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0; transition: opacity 0.12s, color 0.12s; }
+  .ws-file-item:hover .ws-file-del { opacity: 1; }
+  .ws-file-del:hover { color: #f87171; }
+
+  .ws-upload-zone {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono);
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .ws-upload-zone:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Context injection editor */
+  .ws-ctx-rule {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s;
+  }
+  .ws-ctx-rule.active-rule { border-color: rgba(163,230,53,0.4); }
+  .ws-ctx-rule-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ws-ctx-rule-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); flex: 1; }
+  .ws-toggle {
+    width: 32px; height: 17px; border-radius: 9px; border: none; cursor: pointer;
+    position: relative; flex-shrink: 0; transition: background 0.2s;
+  }
+  .ws-toggle.on { background: var(--accent); }
+  .ws-toggle.off { background: var(--border); }
+  .ws-toggle::after {
+    content: ''; position: absolute; top: 2px; width: 13px; height: 13px;
+    border-radius: 50%; background: #fff; transition: left 0.2s;
+  }
+  .ws-toggle.on::after { left: 17px; }
+  .ws-toggle.off::after { left: 2px; }
+  .ws-ctx-items { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ws-ctx-tag {
+    font-family: var(--mono); font-size: 9px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--text3);
+  }
+  .ws-ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+
 </style>
 </head>
 <body>
@@ -1826,36 +1941,16 @@ function useMonitorSSE() {
   return { activeAgent, activeRoute, connected };
 }
 
-function buildMermaidDiagram(activeAgent) {
-  const nodeId = (id) => id.replace(/_/g, "");
-  const label = (id, display) => display ? `${nodeId(id)}["${display}"]` : nodeId(id);
+// Maps agent IDs to likely node IDs in the default workspace Mermaid diagram
+const AGENT_NODE_ALIASES = { image_generator: "imagegen", audio_generator: "audiogen" };
 
-  const highlight = activeAgent
-    ? `  style ${nodeId(activeAgent)} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`
-    : "";
-
-  return [
-    "flowchart TD",
-    "  userinput([User Input]) --> orchestrator",
-    "  orchestrator --> researcher",
-    "  orchestrator --> memory",
-    "  orchestrator --> coder",
-    "  orchestrator --> writer",
-    "  orchestrator --> governor",
-    "  orchestrator --> planner",
-    "  orchestrator --> formatter",
-    `  orchestrator --> ${label("image_generator","Image Gen")}`,
-    `  orchestrator --> ${label("audio_generator","Audio Gen")}`,
-    "  researcher --> executor",
-    "  memory --> executor",
-    "  coder --> executor",
-    "  writer --> executor",
-    "  planner --> executor",
-    "  formatter --> executor",
-    "  executor --> reviewer",
-    "  reviewer --> response([Response])",
-    highlight,
-  ].filter(Boolean).join("\n");
+function applyMermaidHighlight(diagramStr, activeAgent) {
+  if (!activeAgent || !diagramStr) return diagramStr ?? "";
+  const nodeId = AGENT_NODE_ALIASES[activeAgent] ?? activeAgent.replace(/_/g, "");
+  const styleLine = `  style ${nodeId} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`;
+  // Only add if the node ID actually appears in the diagram to avoid parse errors
+  if (!diagramStr.includes(nodeId)) return diagramStr;
+  return diagramStr.trimEnd() + "\n" + styleLine;
 }
 
 function useMermaid(containerRef, diagramStr) {
@@ -1883,56 +1978,46 @@ function useMermaid(containerRef, diagramStr) {
   }, [diagramStr]);
 }
 
-function AgentDiagramPanel({ activeAgent }) {
+function AgentDiagramPanel({ activeAgent, workspaceData }) {
   const containerRef = React.useRef(null);
-  const diagram = buildMermaidDiagram(activeAgent);
+  const baseDiagram = workspaceData?.mermaidDiagram ?? "";
+  const diagram = applyMermaidHighlight(baseDiagram, activeAgent);
   useMermaid(containerRef, diagram);
   return (
     <div className="obs-panel-body">
-      <div className="mermaid-container" ref={containerRef} />
+      {!workspaceData
+        ? <div className="obs-loading"><span>Loading…</span></div>
+        : <div className="mermaid-container" ref={containerRef} />
+      }
     </div>
   );
 }
 
-const CONTEXT_CATEGORIES = {
-  Skills:  ["agent-orchestration","memory-compression","model-selection","openrouter","prompt-engineering","supabase-auth"],
-  Agents:  ["orchestrator","researcher","reviewer","memory","coder","writer","governor","planner","executor","formatter","image_generator","audio_generator"],
-  Rules:   ["api-design","general","styling","supabase","testing"],
-  MCPs:    ["github","supabase"],
-  Hooks:   ["on-agent-complete","on-error","on-memory-write","post-tool-use","pre-tool-use"],
-  Memory:  ["MEMORY.md"],
-};
+function ContextInjectionPanel({ activeAgent, workspaceData }) {
+  const rules = workspaceData?.contextInjection ?? [];
+  // When an agent is active, all enabled rules are being injected (workspace context goes to all agents)
+  const isProcessing = Boolean(activeAgent);
 
-const AGENT_CONTEXT_MAP = {
-  orchestrator:    ["Skills","Agents","Rules"],
-  researcher:      ["Skills","MCPs","Memory"],
-  memory:          ["Memory","Skills"],
-  coder:           ["Skills","Rules","Hooks"],
-  writer:          ["Skills","Rules"],
-  governor:        ["Rules","Hooks"],
-  planner:         ["Skills","Agents"],
-  executor:        ["Skills","Agents","Memory"],
-  reviewer:        ["Rules","Skills"],
-  formatter:       ["Rules","Skills"],
-  image_generator: ["Skills"],
-  audio_generator: ["Skills"],
-};
+  if (!workspaceData) {
+    return <div className="obs-panel-body"><div className="obs-loading"><span>Loading…</span></div></div>;
+  }
 
-function ContextInjectionPanel({ activeAgent }) {
-  const activeCategories = activeAgent ? (AGENT_CONTEXT_MAP[activeAgent] ?? []) : [];
   return (
     <div className="obs-panel-body">
       <div className="ctx-grid">
-        {Object.entries(CONTEXT_CATEGORIES).map(([category, items]) => {
-          const isActive = activeCategories.includes(category);
+        {rules.map(rule => {
+          const isActive = rule.active && isProcessing;
+          const isEnabled = rule.active;
           return (
-            <div key={category} className={`ctx-box${isActive ? " active" : ""}`}>
+            <div key={rule.id} className={`ctx-box${isActive ? " active" : ""}`}
+              style={!isEnabled ? { opacity: 0.4 } : undefined}>
               <div className="ctx-box-label">
                 <span className="ctx-box-label-dot" />
-                {category}
+                {rule.label}
+                {!isEnabled && <span style={{ marginLeft: 4, fontFamily: "var(--mono)", fontSize: 8, color: "var(--text3)" }}>off</span>}
               </div>
               <div className="ctx-box-items">
-                {items.map(item => (
+                {rule.items.map(item => (
                   <span key={item} className={`ctx-tag${isActive ? " lit" : ""}`}>{item}</span>
                 ))}
               </div>
@@ -1944,29 +2029,50 @@ function ContextInjectionPanel({ activeAgent }) {
   );
 }
 
-function DirectoryPanel({ activeAgent }) {
-  const [tree, setTree] = React.useState(null);
-  const [expanded, setExpanded] = React.useState(new Set([".", ""]));
+function buildWorkspaceTree(files) {
+  if (!files || files.length === 0) return null;
+  const root = { name: "workspace", path: "", type: "dir", children: [] };
+  const dirMap = { "": root };
 
-  React.useEffect(() => {
-    fetch("/api/monitor/directory")
-      .then(r => r.json())
-      .then(d => setTree(d.tree))
-      .catch(() => {});
-  }, []);
+  // Register directory nodes first
+  files.filter(f => f.is_directory).forEach(f => {
+    dirMap[f.path] = { name: f.name, path: f.path, type: "dir", children: [] };
+  });
 
+  // Place every item under its parent
+  files.forEach(f => {
+    const parentPath = f.path.includes("/")
+      ? f.path.split("/").slice(0, -1).join("/")
+      : "";
+    const parent = dirMap[parentPath] ?? root;
+    if (f.is_directory) {
+      if (!parent.children.find(c => c.path === f.path)) parent.children.push(dirMap[f.path]);
+    } else {
+      parent.children.push({ name: f.name, path: f.path, type: "file" });
+    }
+  });
+
+  return root;
+}
+
+function DirectoryPanel({ activeAgent, workspaceData }) {
+  const [expanded, setExpanded] = React.useState(new Set([""]));
+
+  const tree = React.useMemo(
+    () => buildWorkspaceTree(workspaceData?.files ?? []),
+    [workspaceData]
+  );
+
+  // Highlight CLAUDE.md always (workspace context loaded); MEMORY.md when memory agent active
   const highlightedPaths = React.useMemo(() => {
-    if (!activeAgent) return new Set();
-    const paths = new Set(["CLAUDE.md"]);
+    const paths = new Set();
+    if (workspaceData) {
+      paths.add("CLAUDE.md");
+      if (workspaceData.memoryMd) paths.add("MEMORY.md");
+    }
     if (activeAgent === "memory") paths.add("MEMORY.md");
-    if (["researcher","coder","writer","executor"].includes(activeAgent)) {
-      paths.add("skills"); paths.add("rules");
-    }
-    if (["orchestrator","governor","planner"].includes(activeAgent)) {
-      paths.add("agents"); paths.add("hooks");
-    }
     return paths;
-  }, [activeAgent]);
+  }, [activeAgent, workspaceData]);
 
   function toggleExpand(path) {
     setExpanded(prev => {
@@ -1978,7 +2084,7 @@ function DirectoryPanel({ activeAgent }) {
 
   function renderNode(node) {
     const isSpecial = node.name === "CLAUDE.md" || node.name === "MEMORY.md";
-    const isHighlighted = highlightedPaths.has(node.name) || highlightedPaths.has(node.path);
+    const isHighlighted = highlightedPaths.has(node.path) || highlightedPaths.has(node.name);
     const isExpanded = expanded.has(node.path);
 
     if (node.type === "file") {
@@ -1993,18 +2099,21 @@ function DirectoryPanel({ activeAgent }) {
     }
 
     const hasChildren = node.children && node.children.length > 0;
+    const isRoot = node.path === "";
     return (
       <div key={node.path} className="dir-node">
-        <div
-          className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}
-          onClick={() => toggleExpand(node.path)}
-          style={{ cursor: hasChildren ? "pointer" : "default" }}
-        >
-          <span className="dir-node-icon">{hasChildren ? (isExpanded ? "▾" : "▸") : "·"}</span>
-          <span className="dir-node-name">{node.name}</span>
-        </div>
-        {isExpanded && hasChildren && (
-          <div className="dir-children">
+        {!isRoot && (
+          <div
+            className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}
+            onClick={() => toggleExpand(node.path)}
+            style={{ cursor: hasChildren ? "pointer" : "default" }}
+          >
+            <span className="dir-node-icon">{hasChildren ? (isExpanded ? "▾" : "▸") : "·"}</span>
+            <span className="dir-node-name">{node.name}/</span>
+          </div>
+        )}
+        {(isRoot || isExpanded) && hasChildren && (
+          <div className={isRoot ? undefined : "dir-children"}>
             {node.children.map(child => renderNode(child))}
           </div>
         )}
@@ -2012,7 +2121,8 @@ function DirectoryPanel({ activeAgent }) {
     );
   }
 
-  if (!tree) return <div className="obs-loading"><span>Loading directory…</span></div>;
+  if (!workspaceData) return <div className="obs-panel-body"><div className="obs-loading"><span>Loading…</span></div></div>;
+  if (!tree) return <div className="obs-panel-body"><div className="obs-loading"><span>No files yet</span></div></div>;
   return (
     <div className="obs-panel-body">
       <div className="dir-tree">{renderNode(tree)}</div>
@@ -2059,7 +2169,7 @@ function useResizablePanels(defaultPercents) {
   return { widths, containerRef, onMouseDown, draggingIdx };
 }
 
-function ContextObservatory() {
+function ContextObservatory({ workspaceData }) {
   const { activeAgent, connected } = useMonitorSSE();
   const { widths, containerRef, onMouseDown, draggingIdx } = useResizablePanels([30, 40, 30]);
 
@@ -2085,7 +2195,7 @@ function ContextObservatory() {
             Agent Architecture
             {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
           </div>
-          <AgentDiagramPanel activeAgent={activeAgent} />
+          <AgentDiagramPanel activeAgent={activeAgent} workspaceData={workspaceData} />
         </div>
 
         <div
@@ -2099,7 +2209,7 @@ function ContextObservatory() {
             Context Injection
             {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
           </div>
-          <ContextInjectionPanel activeAgent={activeAgent} />
+          <ContextInjectionPanel activeAgent={activeAgent} workspaceData={workspaceData} />
         </div>
 
         <div
@@ -2112,8 +2222,456 @@ function ContextObservatory() {
             <span className="obs-panel-header-dot" />
             Directory Hierarchy
           </div>
-          <DirectoryPanel activeAgent={activeAgent} />
+          <DirectoryPanel activeAgent={activeAgent} workspaceData={workspaceData} />
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2" y="3" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 21h8M12 17v4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function FolderIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M1 3.5A1.5 1.5 0 012.5 2h2.586a1.5 1.5 0 011.06.44L7.5 3.5H13A1.5 1.5 0 0114.5 5v6A1.5 1.5 0 0113 12.5H3A1.5 1.5 0 011.5 11V3.5z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function FileIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M10 2v3h3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 10V3M5 6l3-3 3 3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// ── Workspace helpers ─────────────────────────────────────────────────
+
+async function apiFetchWorkspace(path, opts = {}) {
+  // Re-uses session token from global apiFetch helper defined in ChatScreen
+  const sb = await getSupabase();
+  const session = sb ? (await sb.auth.getSession()).data.session : null;
+  const headers = { "Content-Type": "application/json", ...(opts.headers ?? {}) };
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  const res = await fetch(path, { ...opts, headers });
+  return res;
+}
+
+function formatBytesWs(n) {
+  if (!n) return "";
+  if (n < 1024) return `${n}B`;
+  return `${(n / 1024).toFixed(1)}KB`;
+}
+
+// ── WorkspacePanel ────────────────────────────────────────────────────
+
+function WorkspacePanel({ onWorkspaceUpdate }) {
+  const [tab, setTab] = React.useState("directory");
+  const [savingArch, setSavingArch] = React.useState(false);
+  const [archSaved, setArchSaved] = React.useState(false);
+  const [mermaidCode, setMermaidCode] = React.useState("");
+  const [archLoading, setArchLoading] = React.useState(true);
+
+  const [ctxRules, setCtxRules] = React.useState([]);
+  const [savingCtx, setSavingCtx] = React.useState(false);
+  const [ctxSaved, setCtxSaved] = React.useState(false);
+  const [ctxLoading, setCtxLoading] = React.useState(true);
+
+  const [files, setFiles] = React.useState([]);
+  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [fileContent, setFileContent] = React.useState("");
+  const [fileLoading, setFileLoading] = React.useState(false);
+  const [fileSaving, setFileSaving] = React.useState(false);
+  const [fileSaved, setFileSaved] = React.useState(false);
+  const [dirLoading, setDirLoading] = React.useState(true);
+  const [newDirName, setNewDirName] = React.useState("");
+  const [creatingDir, setCreatingDir] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState("");
+  const fileInputRef = React.useRef(null);
+  const mermaidPreviewRef = React.useRef(null);
+
+  // Load data for each tab
+  React.useEffect(() => {
+    if (tab === "architecture") loadArch();
+    if (tab === "context") loadCtx();
+    if (tab === "directory") loadFiles();
+  }, [tab]);
+
+  // Live Mermaid preview
+  React.useEffect(() => {
+    if (tab !== "architecture" || !mermaidCode || !mermaidPreviewRef.current || !window.mermaid) return;
+    const id = "mermaid-ws-" + Date.now();
+    window.mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: {
+      background: "#141414", primaryColor: "#1c1c1c", primaryTextColor: "#e8e8e3",
+      primaryBorderColor: "#5e5e5e", lineColor: "#5e5e5e",
+    }});
+    window.mermaid.render(id, mermaidCode).then(({ svg }) => {
+      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = svg;
+    }).catch(() => {
+      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Invalid diagram</span>';
+    });
+  }, [mermaidCode, tab]);
+
+  async function loadArch() {
+    setArchLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/agent-config");
+      if (r.ok) { const d = await r.json(); setMermaidCode(d.mermaid_diagram ?? ""); }
+    } catch {}
+    setArchLoading(false);
+  }
+
+  async function saveArch() {
+    setSavingArch(true);
+    try {
+      await apiFetchWorkspace("/api/workspace/agent-config", {
+        method: "PUT", body: JSON.stringify({ mermaid_diagram: mermaidCode })
+      });
+      setArchSaved(true);
+      setTimeout(() => setArchSaved(false), 2000);
+      onWorkspaceUpdate?.();
+    } catch {}
+    setSavingArch(false);
+  }
+
+  async function loadCtx() {
+    setCtxLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/context-injection");
+      if (r.ok) { const d = await r.json(); setCtxRules(d.rules ?? []); }
+    } catch {}
+    setCtxLoading(false);
+  }
+
+  async function saveCtx() {
+    setSavingCtx(true);
+    try {
+      await apiFetchWorkspace("/api/workspace/context-injection", {
+        method: "PUT", body: JSON.stringify({ rules: ctxRules })
+      });
+      setCtxSaved(true);
+      setTimeout(() => setCtxSaved(false), 2000);
+      onWorkspaceUpdate?.();
+    } catch {}
+    setSavingCtx(false);
+  }
+
+  function toggleRule(id) {
+    setCtxRules(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
+  }
+
+  async function loadFiles() {
+    setDirLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/files");
+      if (r.ok) { const d = await r.json(); setFiles(d.files ?? []); }
+    } catch {}
+    setDirLoading(false);
+  }
+
+  async function openFile(file) {
+    if (file.is_directory) return;
+    setSelectedFile(file);
+    setFileLoading(true);
+    try {
+      const r = await apiFetchWorkspace(`/api/workspace/files/${file.path}`);
+      if (r.ok) { const d = await r.json(); setFileContent(d.content ?? ""); }
+    } catch {}
+    setFileLoading(false);
+  }
+
+  async function saveFile() {
+    if (!selectedFile) return;
+    setFileSaving(true);
+    try {
+      await apiFetchWorkspace(`/api/workspace/files/${selectedFile.path}`, {
+        method: "PUT", body: JSON.stringify({ content: fileContent, mime_type: selectedFile.mime_type })
+      });
+      setFileSaved(true);
+      setTimeout(() => setFileSaved(false), 2000);
+      await loadFiles();
+      onWorkspaceUpdate?.();
+    } catch {}
+    setFileSaving(false);
+  }
+
+  async function deleteFile(file, e) {
+    e.stopPropagation();
+    if (!confirm(`Delete "${file.name}"?`)) return;
+    try {
+      await apiFetchWorkspace(`/api/workspace/files/${file.path}`, { method: "DELETE" });
+      if (selectedFile?.path === file.path) { setSelectedFile(null); setFileContent(""); }
+      await loadFiles();
+      onWorkspaceUpdate?.();
+    } catch {}
+  }
+
+  async function createDir() {
+    if (!newDirName.trim()) return;
+    setCreatingDir(true);
+    try {
+      await apiFetchWorkspace("/api/workspace/directories", {
+        method: "POST", body: JSON.stringify({ name: newDirName.trim() })
+      });
+      setNewDirName("");
+      await loadFiles();
+      onWorkspaceUpdate?.();
+    } catch {}
+    setCreatingDir(false);
+  }
+
+  async function handleUpload(e) {
+    setUploadError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["md", "pdf", "csv", "txt"].includes(ext)) {
+      setUploadError("Only .md, .pdf, .csv, .txt files allowed");
+      return;
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      setUploadError("File too large (max 8 MB)");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const content = ev.target.result;
+      try {
+        const r = await apiFetchWorkspace("/api/workspace/upload", {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, content, mime_type: file.type || "application/octet-stream" })
+        });
+        if (!r.ok) { const d = await r.json(); setUploadError(d.error ?? "Upload failed"); return; }
+        await loadFiles();
+        onWorkspaceUpdate?.();
+      } catch (err) { setUploadError(err.message); }
+    };
+    if (["md", "csv", "txt"].includes(ext)) reader.readAsText(file);
+    else reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  // Group files into dirs and root
+  const rootFiles = files.filter(f => !f.path.includes("/") && !f.is_directory);
+  const dirs = files.filter(f => f.is_directory);
+  const resourceFiles = files.filter(f => f.path.startsWith("00_Resources/"));
+  const workstations = dirs.filter(d => d.name !== "00_Resources");
+
+  return (
+    <div className="ws-wrap">
+      <div className="ws-header">
+        <span className="ws-title">My Workspace</span>
+        <div className="ws-tabs">
+          {[["directory","Directory"], ["context","Context Injection"], ["architecture","Agent Architecture"]].map(([id, label]) => (
+            <button key={id} className={`ws-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{label}</button>
+          ))}
+        </div>
+      </div>
+      <div className="ws-body">
+
+        {/* ── Architecture tab ── */}
+        {tab === "architecture" && (
+          <div className="ws-content">
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Mermaid Diagram</div>
+              {archLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div> : <>
+                <textarea
+                  className="ws-textarea"
+                  style={{ minHeight: 220, fontFamily: "var(--mono)", fontSize: 11 }}
+                  value={mermaidCode}
+                  onChange={e => setMermaidCode(e.target.value)}
+                  spellCheck={false}
+                  placeholder="flowchart TD&#10;  ..."
+                />
+                <div className="ws-actions">
+                  <button className="ws-btn" onClick={saveArch} disabled={savingArch}>
+                    {savingArch ? "Saving…" : "Save"}
+                  </button>
+                  <span className={`ws-save-status${archSaved ? "" : " hidden"}`}>Saved</span>
+                </div>
+              </>}
+            </div>
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Preview</div>
+              <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: 16, overflowX: "auto", minHeight: 80 }}>
+                <div ref={mermaidPreviewRef} className="mermaid-container" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Context Injection tab ── */}
+        {tab === "context" && (
+          <div className="ws-content">
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Context Injection Rules</div>
+              <p style={{fontSize:12,color:"var(--text3)",marginBottom:14,fontFamily:"var(--mono)"}}>Toggle which context categories are injected into agent prompts during chat.</p>
+              {ctxLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div> :
+                ctxRules.map(rule => (
+                  <div key={rule.id} className={`ws-ctx-rule${rule.active ? " active-rule" : ""}`}>
+                    <div className="ws-ctx-rule-header">
+                      <span className="ws-ctx-rule-label">{rule.label}</span>
+                      <button
+                        className={`ws-toggle${rule.active ? " on" : " off"}`}
+                        onClick={() => toggleRule(rule.id)}
+                        title={rule.active ? "Disable" : "Enable"}
+                      />
+                    </div>
+                    <div className="ws-ctx-items">
+                      {rule.items.map(item => <span key={item} className={`ws-ctx-tag${rule.active ? " lit" : ""}`}>{item}</span>)}
+                    </div>
+                  </div>
+                ))
+              }
+              {!ctxLoading && (
+                <div className="ws-actions" style={{marginTop:16}}>
+                  <button className="ws-btn" onClick={saveCtx} disabled={savingCtx}>{savingCtx ? "Saving…" : "Save"}</button>
+                  <span className={`ws-save-status${ctxSaved ? "" : " hidden"}`}>Saved</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Directory tab ── */}
+        {tab === "directory" && (
+          <div className="ws-content" style={{ display: "flex", gap: 20, minHeight: 0 }}>
+            {/* Left: file browser */}
+            <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 0 }}>
+              <div className="ws-section-title" style={{marginBottom:8}}><span className="ws-section-title-dot"/>Files</div>
+              {dirLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:11}}>Loading…</div> : <>
+                <div className="ws-file-list">
+                  {/* Root text files */}
+                  {rootFiles.map(f => (
+                    <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} onClick={() => openFile(f)}>
+                      <span className="ws-file-icon"><FileIcon/></span>
+                      <span className={`ws-file-name${["CLAUDE.md","MEMORY.md"].includes(f.name)?" special":""}`}>{f.name}</span>
+                      <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
+                    </div>
+                  ))}
+                  {/* 00_Resources dir */}
+                  <div key="00_Resources" className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
+                    <span className="ws-file-icon"><FolderIcon/></span>
+                    <span className="ws-file-name">00_Resources/</span>
+                    <span className="ws-file-meta">{resourceFiles.length} file{resourceFiles.length!==1?"s":""}</span>
+                  </div>
+                  {resourceFiles.map(f => (
+                    <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} style={{marginLeft:14}} onClick={() => openFile(f)}>
+                      <span className="ws-file-icon"><FileIcon/></span>
+                      <span className="ws-file-name">{f.name}</span>
+                      <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
+                      <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
+                    </div>
+                  ))}
+                  {/* Workstations */}
+                  {workstations.map(ws => {
+                    const wsFiles = files.filter(f => f.path.startsWith(ws.name + "/") && !f.is_directory);
+                    return (
+                      <React.Fragment key={ws.path}>
+                        <div className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
+                          <span className="ws-file-icon"><FolderIcon/></span>
+                          <span className="ws-file-name">{ws.name}/</span>
+                          <span className="ws-file-meta">{wsFiles.length} file{wsFiles.length!==1?"s":""}</span>
+                        </div>
+                        {wsFiles.map(f => (
+                          <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} style={{marginLeft:14}} onClick={() => openFile(f)}>
+                            <span className="ws-file-icon"><FileIcon/></span>
+                            <span className="ws-file-name">{f.name}</span>
+                            <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
+                            <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
+                          </div>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {/* Upload */}
+                <div style={{marginBottom:12}}>
+                  <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>Upload to 00_Resources</div>
+                  <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
+                    <UploadIcon/> Click to upload .md, .pdf, .csv, .txt (max 8 MB)
+                  </div>
+                  <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt" style={{display:"none"}} onChange={handleUpload}/>
+                  {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
+                </div>
+
+                {/* Create workstation */}
+                <div>
+                  <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>New Workstation</div>
+                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                    <input
+                      style={{flex:1,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 9px",color:"var(--text)",fontFamily:"var(--mono)",fontSize:11,outline:"none"}}
+                      placeholder="Workstation name…"
+                      value={newDirName}
+                      onChange={e => setNewDirName(e.target.value)}
+                      onKeyDown={e => e.key==="Enter" && createDir()}
+                    />
+                    <button className="ws-btn" style={{padding:"5px 10px",fontSize:11}} onClick={createDir} disabled={creatingDir || !newDirName.trim()}>
+                      {creatingDir ? "…" : "Create"}
+                    </button>
+                  </div>
+                </div>
+              </>}
+            </div>
+
+            {/* Divider */}
+            <div style={{width:1,background:"var(--border)",flexShrink:0,alignSelf:"stretch"}}/>
+
+            {/* Right: file editor */}
+            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+              {!selectedFile ? (
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>
+                  Select a file to edit
+                </div>
+              ) : (
+                <>
+                  <div className="ws-section-title" style={{marginBottom:8}}>
+                    <span className="ws-section-title-dot"/>
+                    {selectedFile.path}
+                  </div>
+                  {fileLoading ? (
+                    <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                  ) : (
+                    <>
+                      <textarea
+                        className="ws-textarea"
+                        style={{flex:1,minHeight:300,resize:"none"}}
+                        value={fileContent}
+                        onChange={e => setFileContent(e.target.value)}
+                        spellCheck={false}
+                      />
+                      <div className="ws-actions" style={{marginTop:10}}>
+                        <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
+                        <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
+                        {!["CLAUDE.md","MEMORY.md","00_Resources"].includes(selectedFile.path) && (
+                          <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}} onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
@@ -2132,6 +2690,14 @@ function LeftNav({ page, onNavigate }) {
         <span className="nav-btn-tooltip">Chat</span>
       </button>
       <button
+        className={`nav-btn${page === "workspace" ? " active" : ""}`}
+        onClick={() => onNavigate("workspace")}
+        aria-label="My Workspace"
+      >
+        <WorkspaceIcon />
+        <span className="nav-btn-tooltip">Workspace</span>
+      </button>
+      <button
         className={`nav-btn${page === "observatory" ? " active" : ""}`}
         onClick={() => onNavigate("observatory")}
         aria-label="Context Observatory"
@@ -2148,6 +2714,33 @@ function App() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [page, setPage] = useState("chat");
+  const [workspaceData, setWorkspaceData] = useState(null);
+  const sessionRef = React.useRef(null);
+  sessionRef.current = session;
+
+  async function loadWorkspaceData(sess) {
+    const token = sess?.access_token;
+    if (!token) return;
+    try {
+      const r = await fetch("/api/workspace/context", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (r.ok) setWorkspaceData(await r.json());
+    } catch {}
+  }
+
+  async function initWorkspace(sess) {
+    if (!sess?.access_token) return;
+    try {
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${sess.access_token}` };
+      await fetch("/api/workspace/init", { method: "POST", headers });
+      await loadWorkspaceData(sess);
+    } catch {}
+  }
+
+  function handleWorkspaceUpdate() {
+    loadWorkspaceData(sessionRef.current);
+  }
 
   useEffect(() => {
     getSupabase().then(sb => {
@@ -2155,9 +2748,11 @@ function App() {
       sb.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setAuthChecked(true);
+        if (session) initWorkspace(session);
       });
       const { data: { subscription } } = sb.auth.onAuthStateChange((_ev, session) => {
         setSession(session);
+        if (session) initWorkspace(session);
       });
       return () => subscription.unsubscribe();
     });
@@ -2184,8 +2779,11 @@ function App() {
         <div className="page-slot" style={{ display: page === "chat" ? "flex" : "none" }}>
           <ChatScreen session={session} onLogout={() => setSession(null)} />
         </div>
+        <div className="page-slot" style={{ display: page === "workspace" ? "flex" : "none" }}>
+          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} />
+        </div>
         <div className="page-slot" style={{ display: page === "observatory" ? "flex" : "none" }}>
-          <ContextObservatory />
+          <ContextObservatory workspaceData={workspaceData} />
         </div>
       </div>
     </div>

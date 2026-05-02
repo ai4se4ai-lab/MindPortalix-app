@@ -110,7 +110,7 @@ export function buildExecutorUserMessage(userMessage, specialistResults) {
  *   mediaUrl:  URL or data-URI for the generated media (when present)
  *   content:   text description / caption for the media, or the full text response
  */
-export async function runSpecialistAgent({ agentId, input, memories = [], onStreamChunk, onStreamReset } = {}) {
+export async function runSpecialistAgent({ agentId, input, memories = [], workspaceContext = "", onStreamChunk, onStreamReset } = {}) {
   const agent = getAgent(agentId);
 
   // ── Image generation agent ─────────────────────────────────────────────
@@ -131,8 +131,12 @@ export async function runSpecialistAgent({ agentId, input, memories = [], onStre
     ? `\n\nRelevant context from memory:\n${memories.map(m => `- ${m.topic}: ${m.summary}`).join("\n")}`
     : "";
 
+  const wsContext = workspaceContext
+    ? `\n\nUser workspace context:\n${workspaceContext}`
+    : "";
+
   const messages = [
-    { role: "system", content: systemPrompt + memoryContext },
+    { role: "system", content: systemPrompt + memoryContext + wsContext },
     { role: "user", content: input },
   ];
 
