@@ -1,8 +1,12 @@
 import { Router } from "express";
+import { readFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { requireAuth } from "../middleware/auth.js";
 import { createClient } from "@supabase/supabase-js";
 
 const router = Router();
+const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 // ── Defaults ────────────────────────────────────────────────────────────────
 
@@ -346,6 +350,24 @@ router.get("/context", requireAuth, async (req, res) => {
     console.error("[workspace/context]", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── Server-side defaults (read-only, never written by users) ─────────────────
+
+router.get("/defaults/:ruleId/:item", requireAuth, async (req, res) => {
+  const { ruleId, item } = req.params;
+  // Strict validation — no path traversal possible
+  if (!/^[a-z_-]+$/.test(ruleId) || !/^[a-zA-Z0-9_.:-]+$/.test(item)) {
+    return res.status(400).json({ error: "Invalid path" });
+  }
+  // Try .md, .js, then bare name in order
+  for (const name of [`${item}.md`, `${item}.js`, item]) {
+    try {
+      const content = await readFile(join(PROJECT_ROOT, ruleId, name), "utf8");
+      return res.json({ content });
+    } catch {}
+  }
+  res.json({ content: "" });
 });
 
 export default router;

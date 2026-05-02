@@ -2356,6 +2356,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   const [itemContent, setItemContent] = React.useState("");
   const [itemLoading, setItemLoading] = React.useState(false);
   const [itemSaved, setItemSaved] = React.useState(false);
+  const [itemIsDefault, setItemIsDefault] = React.useState(false); // true = showing server default, not personalized yet
   const [panelWidth, setPanelWidth] = React.useState(380);
   const itemContentRef = React.useRef("");
   const itemPanelRef = React.useRef(null);
@@ -2490,11 +2491,24 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     itemPanelRef.current = panel;
     setItemPanel(panel);
     setItemContent(""); itemContentRef.current = "";
+    setItemIsDefault(false);
     setItemLoading(true);
+    let content = "";
+    let isDefault = false;
     try {
+      // 1. Try the user's personal copy
       const r = await apiFetchWorkspace(`/api/workspace/files/_context/${rule.id}/${item}`);
-      if (r.ok) { const d = await r.json(); const c = d.content ?? ""; setItemContent(c); itemContentRef.current = c; }
+      if (r.ok) {
+        const d = await r.json();
+        content = d.content ?? "";
+      } else {
+        // 2. No personal copy yet — load the server-side default (read-only original)
+        const dr = await apiFetchWorkspace(`/api/workspace/defaults/${rule.id}/${item}`);
+        if (dr.ok) { const d = await dr.json(); content = d.content ?? ""; isDefault = true; }
+      }
     } catch {}
+    setItemContent(content); itemContentRef.current = content;
+    setItemIsDefault(isDefault);
     setItemLoading(false);
   }
 
@@ -2513,6 +2527,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     clearInterval(autoSaveTimer.current); autoSaveTimer.current = null;
     itemPanelRef.current = null;
     setItemPanel(null); setItemContent(""); itemContentRef.current = "";
+    setItemIsDefault(false);
   }
 
   function startPanelResize(e) {
@@ -2619,14 +2634,18 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
               ? <div style={{ color:"var(--text3)", fontFamily:"var(--mono)", fontSize:12 }}>Loading…</div>
               : <>
                   <div className="item-panel-meta">
-                    _context/{itemPanel.ruleId}/{itemPanel.item} · injected when category is active
+                    {itemIsDefault
+                      ? <><span style={{color:"var(--accent)"}}>server default</span> · edit to create your personal copy</>
+                      : <><span style={{color:"var(--text2)"}}>personal copy</span> · _context/{itemPanel.ruleId}/{itemPanel.item}</>
+                    }
+                    {" · injected when category is active"}
                   </div>
                   <textarea
                     className="ws-textarea"
                     style={{ flex:1, minHeight:0, resize:"none" }}
                     value={itemContent}
-                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; }}
-                    placeholder={`Describe "${itemPanel.item}" here.\n\nThis content will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
+                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; if (itemIsDefault) setItemIsDefault(false); }}
+                    placeholder={`No server-side default found for "${itemPanel.item}".\n\nWrite your own definition — it will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
                     spellCheck={false}
                     autoFocus
                   />
