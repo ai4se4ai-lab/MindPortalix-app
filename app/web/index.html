@@ -927,6 +927,25 @@
   .ws-ctx-tag-btn:hover .ws-ctx-tag-remove { opacity: 0.7; }
   .ws-ctx-tag-btn:hover .ws-ctx-tag-remove:hover { opacity: 1; color: #f87171; }
 
+  /* Directory breadcrumb */
+  .ws-breadcrumb {
+    display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10px;
+    padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; margin-bottom: 10px; flex-shrink: 0;
+  }
+  .ws-bread-seg { cursor: pointer; color: var(--text2); transition: color 0.12s; padding: 1px 2px; }
+  .ws-bread-seg:hover { color: var(--accent); }
+  .ws-bread-seg.current { color: var(--accent); cursor: default; }
+  .ws-bread-sep { color: var(--border-strong); user-select: none; }
+  .ws-dir-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    border-radius: 7px; background: var(--bg2); border: 1px solid var(--border);
+    cursor: pointer; transition: border-color 0.12s;
+  }
+  .ws-dir-item:hover { border-color: var(--accent); }
+  .ws-dir-arrow { font-size: 9px; color: var(--text3); margin-left: auto; flex-shrink: 0; }
+
   /* Item editor slide-in panel */
   .item-panel {
     position: fixed; top: 0; right: 0; bottom: 0; z-index: 300;
@@ -2364,6 +2383,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   // Directory
   const [files, setFiles] = React.useState([]);
+  const [currentPath, setCurrentPath] = React.useState(""); // "" = workspace root
   const [selectedFile, setSelectedFile] = React.useState(null);
   const [fileContent, setFileContent] = React.useState("");
   const [fileLoading, setFileLoading] = React.useState(false);
@@ -2539,6 +2559,24 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   }
 
   // ── Directory ────────────────────────────────────────────────────────
+
+  // Items directly inside a given path (one level only)
+  function childrenAt(parentPath) {
+    const prefix = parentPath ? parentPath + "/" : "";
+    return files.filter(f => {
+      if (!f.path.startsWith(prefix)) return false;
+      const rest = f.path.slice(prefix.length);
+      return rest.length > 0 && !rest.includes("/");
+    });
+  }
+
+  const PROTECTED_NAMES = ["CLAUDE.md", "MEMORY.md", "00_Resources"];
+
+  // Upload goes to the nearest 00_Resources for the current context
+  const uploadDir = currentPath === "00_Resources" || currentPath.endsWith("/00_Resources")
+    ? currentPath
+    : currentPath ? `${currentPath}/00_Resources` : "00_Resources";
+
   async function loadFiles() {
     setDirLoading(true);
     try {
@@ -2548,8 +2586,31 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     setDirLoading(false);
   }
 
+  async function navigateInto(dir) {
+    setSelectedFile(null); setFileContent("");
+    setCurrentPath(dir.path);
+    // Auto-init root workstations that predate this feature (no CLAUDE.md yet)
+    const isRootWorkstation = !dir.path.includes("/");
+    if (isRootWorkstation) {
+      const hasClaude = files.some(f => f.path === `${dir.path}/CLAUDE.md`);
+      if (!hasClaude) {
+        try {
+          await apiFetchWorkspace("/api/workspace/directories", {
+            method: "POST", body: JSON.stringify({ name: dir.name })
+          });
+          await loadFiles();
+        } catch {}
+      }
+    }
+  }
+
+  function navigateTo(path) {
+    setCurrentPath(path);
+    setSelectedFile(null); setFileContent("");
+  }
+
   async function openFile(file) {
-    if (file.is_directory) return;
+    if (file.is_directory) { navigateInto(file); return; }
     setSelectedFile(file); setFileLoading(true);
     try {
       const r = await apiFetchWorkspace(`/api/workspace/files/${file.path}`);
@@ -2572,10 +2633,18 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   async function deleteFile(file, e) {
     e.stopPropagation();
-    if (!confirm(`Delete "${file.name}"?`)) return;
+    const label = file.is_directory ? `directory "${file.name}" and all its contents` : `"${file.name}"`;
+    if (!confirm(`Delete ${label}?`)) return;
     try {
       await apiFetchWorkspace(`/api/workspace/files/${file.path}`, { method: "DELETE" });
-      if (selectedFile?.path === file.path) { setSelectedFile(null); setFileContent(""); }
+      if (selectedFile?.path === file.path || selectedFile?.path.startsWith(file.path + "/")) {
+        setSelectedFile(null); setFileContent("");
+      }
+      // Navigate up if we're inside the deleted directory
+      if (currentPath === file.path || currentPath.startsWith(file.path + "/")) {
+        const parentPath = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : "";
+        setCurrentPath(parentPath);
+      }
       await loadFiles(); onWorkspaceUpdate?.();
     } catch {}
   }
@@ -2604,7 +2673,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
       try {
         const r = await apiFetchWorkspace("/api/workspace/upload", {
           method: "POST",
-          body: JSON.stringify({ name: file.name, content: ev.target.result, mime_type: file.type || "application/octet-stream" })
+          body: JSON.stringify({ name: file.name, content: ev.target.result, mime_type: file.type || "application/octet-stream", directory: uploadDir })
         });
         if (!r.ok) { const d = await r.json(); setUploadError(d.error ?? "Upload failed"); return; }
         await loadFiles(); onWorkspaceUpdate?.();
@@ -2613,10 +2682,6 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     if (["md","csv","txt"].includes(ext)) reader.readAsText(file); else reader.readAsDataURL(file);
     e.target.value = "";
   }
-
-  const rootFiles = files.filter(f => !f.path.includes("/") && !f.is_directory);
-  const resourceFiles = files.filter(f => f.path.startsWith("00_Resources/"));
-  const workstations = files.filter(f => f.is_directory && f.name !== "00_Resources");
 
   return (
     <div className="ws-wrap">
@@ -2750,106 +2815,130 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
         )}
 
         {/* ── Directory tab ── */}
-        {tab === "directory" && (
-          <div className="ws-content" style={{display:"flex",gap:20,minHeight:0}}>
-            <div style={{width:260,flexShrink:0,display:"flex",flexDirection:"column",gap:0}}>
-              <div className="ws-section-title" style={{marginBottom:8}}><span className="ws-section-title-dot"/>Files</div>
-              {dirLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:11}}>Loading…</div> : <>
-                <div className="ws-file-list">
-                  {rootFiles.map(f => (
-                    <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} onClick={() => openFile(f)}>
-                      <span className="ws-file-icon"><FileIcon/></span>
-                      <span className={`ws-file-name${["CLAUDE.md","MEMORY.md"].includes(f.name)?" special":""}`}>{f.name}</span>
-                      <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
-                    </div>
-                  ))}
-                  <div className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
-                    <span className="ws-file-icon"><FolderIcon/></span>
-                    <span className="ws-file-name">00_Resources/</span>
-                    <span className="ws-file-meta">{resourceFiles.length} file{resourceFiles.length!==1?"s":""}</span>
-                  </div>
-                  {resourceFiles.map(f => (
-                    <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} style={{marginLeft:14}} onClick={() => openFile(f)}>
-                      <span className="ws-file-icon"><FileIcon/></span>
-                      <span className="ws-file-name">{f.name}</span>
-                      <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
-                      <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
-                    </div>
-                  ))}
-                  {workstations.map(ws => {
-                    const wsFiles = files.filter(f => f.path.startsWith(ws.name+"/") && !f.is_directory);
+        {tab === "directory" && (() => {
+          const items = childrenAt(currentPath);
+          const childDirs  = items.filter(f => f.is_directory);
+          const childFiles = items.filter(f => !f.is_directory);
+          const pathParts  = currentPath ? currentPath.split("/") : [];
+          return (
+            <div className="ws-content" style={{display:"flex",gap:20,minHeight:0}}>
+              {/* ── Left: browser ── */}
+              <div style={{width:260,flexShrink:0,display:"flex",flexDirection:"column",gap:0}}>
+
+                {/* Breadcrumb */}
+                <div className="ws-breadcrumb">
+                  <span className={`ws-bread-seg${!currentPath?" current":""}`}
+                        onClick={() => navigateTo("")}>workspace</span>
+                  {pathParts.map((part, i) => {
+                    const np = pathParts.slice(0, i+1).join("/");
+                    const isLast = i === pathParts.length - 1;
                     return (
-                      <React.Fragment key={ws.path}>
-                        <div className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
-                          <span className="ws-file-icon"><FolderIcon/></span>
-                          <span className="ws-file-name">{ws.name}/</span>
-                          <span className="ws-file-meta">{wsFiles.length} file{wsFiles.length!==1?"s":""}</span>
-                        </div>
-                        {wsFiles.map(f => (
-                          <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} style={{marginLeft:14}} onClick={() => openFile(f)}>
-                            <span className="ws-file-icon"><FileIcon/></span>
-                            <span className="ws-file-name">{f.name}</span>
-                            <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
-                            <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
-                          </div>
-                        ))}
+                      <React.Fragment key={np}>
+                        <span className="ws-bread-sep">/</span>
+                        <span className={`ws-bread-seg${isLast?" current":""}`}
+                              onClick={() => !isLast && navigateTo(np)}>{part}</span>
                       </React.Fragment>
                     );
                   })}
                 </div>
-                <div style={{marginBottom:12}}>
-                  <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>Upload to 00_Resources</div>
-                  <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
-                    <UploadIcon/> Click to upload .md, .pdf, .csv, .txt (max 8 MB)
-                  </div>
-                  <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt" style={{display:"none"}} onChange={handleUpload}/>
-                  {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
-                </div>
-                <div>
-                  <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>New Workstation</div>
-                  <div style={{display:"flex",gap:6,alignItems:"center"}}>
-                    <input
-                      style={{flex:1,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 9px",color:"var(--text)",fontFamily:"var(--mono)",fontSize:11,outline:"none"}}
-                      placeholder="Workstation name…"
-                      value={newDirName}
-                      onChange={e => setNewDirName(e.target.value)}
-                      onKeyDown={e => e.key==="Enter" && createDir()}
-                    />
-                    <button className="ws-btn" style={{padding:"5px 10px",fontSize:11}} onClick={createDir} disabled={creatingDir || !newDirName.trim()}>
-                      {creatingDir ? "…" : "Create"}
-                    </button>
-                  </div>
-                </div>
-              </>}
-            </div>
-            <div style={{width:1,background:"var(--border)",flexShrink:0,alignSelf:"stretch"}}/>
-            <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
-              {!selectedFile
-                ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Select a file to edit</div>
-                : <>
-                    <div className="ws-section-title" style={{marginBottom:8}}>
-                      <span className="ws-section-title-dot"/>{selectedFile.path}
-                    </div>
-                    {fileLoading
-                      ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
-                      : <>
-                          <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
-                            value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
-                          <div className="ws-actions" style={{marginTop:10}}>
-                            <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
-                            <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
-                            {!["CLAUDE.md","MEMORY.md","00_Resources"].includes(selectedFile.path) && (
-                              <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
-                                onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+
+                {dirLoading
+                  ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:11}}>Loading…</div>
+                  : <>
+                      <div className="ws-file-list">
+                        {/* Directories */}
+                        {childDirs.map(dir => (
+                          <div key={dir.path} className="ws-dir-item" onClick={() => navigateInto(dir)}>
+                            <span className="ws-file-icon"><FolderIcon/></span>
+                            <span className={`ws-file-name${PROTECTED_NAMES.includes(dir.name)?" special":""}`}>{dir.name}/</span>
+                            <span className="ws-dir-arrow">▶</span>
+                            {!PROTECTED_NAMES.includes(dir.name) && (
+                              <button className="ws-file-del" onClick={e => deleteFile(dir, e)}>×</button>
                             )}
                           </div>
-                        </>
-                    }
-                  </>
-              }
+                        ))}
+                        {/* Files */}
+                        {childFiles.map(f => (
+                          <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`}
+                               onClick={() => openFile(f)}>
+                            <span className="ws-file-icon"><FileIcon/></span>
+                            <span className={`ws-file-name${PROTECTED_NAMES.includes(f.name)?" special":""}`}>{f.name}</span>
+                            <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
+                            {!PROTECTED_NAMES.includes(f.name) && (
+                              <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
+                            )}
+                          </div>
+                        ))}
+                        {items.length === 0 && (
+                          <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>Empty</div>
+                        )}
+                      </div>
+
+                      {/* Upload — always visible, goes to correct 00_Resources */}
+                      <div style={{marginBottom:12}}>
+                        <div className="ws-section-title" style={{marginBottom:6}}>
+                          <span className="ws-section-title-dot"/>Upload → {uploadDir}
+                        </div>
+                        <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
+                          <UploadIcon/> .md, .pdf, .csv, .txt (max 8 MB)
+                        </div>
+                        <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt" style={{display:"none"}} onChange={handleUpload}/>
+                        {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
+                      </div>
+
+                      {/* New Workstation — only at root */}
+                      {currentPath === "" && (
+                        <div>
+                          <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>New Workstation</div>
+                          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                            <input
+                              style={{flex:1,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 9px",color:"var(--text)",fontFamily:"var(--mono)",fontSize:11,outline:"none"}}
+                              placeholder="Workstation name…"
+                              value={newDirName}
+                              onChange={e => setNewDirName(e.target.value)}
+                              onKeyDown={e => e.key==="Enter" && createDir()}
+                            />
+                            <button className="ws-btn" style={{padding:"5px 10px",fontSize:11}} onClick={createDir} disabled={creatingDir || !newDirName.trim()}>
+                              {creatingDir ? "…" : "Create"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                }
+              </div>
+
+              <div style={{width:1,background:"var(--border)",flexShrink:0,alignSelf:"stretch"}}/>
+
+              {/* ── Right: file editor ── */}
+              <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+                {!selectedFile
+                  ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Select a file to edit</div>
+                  : <>
+                      <div className="ws-section-title" style={{marginBottom:8}}>
+                        <span className="ws-section-title-dot"/>{selectedFile.path}
+                      </div>
+                      {fileLoading
+                        ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                        : <>
+                            <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
+                              value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
+                            <div className="ws-actions" style={{marginTop:10}}>
+                              <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
+                              <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
+                              {!PROTECTED_NAMES.includes(selectedFile.name) && (
+                                <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
+                                  onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+                              )}
+                            </div>
+                          </>
+                      }
+                    </>
+                }
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </div>

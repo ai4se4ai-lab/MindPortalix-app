@@ -235,15 +235,18 @@ router.delete("/files/*", requireAuth, async (req, res) => {
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const filePath = req.params[0];
-  if (["CLAUDE.md", "MEMORY.md", "00_Resources"].includes(filePath)) {
+  const fileName = filePath.split("/").pop();
+  if (["CLAUDE.md", "MEMORY.md", "00_Resources"].includes(fileName)) {
     return res.status(403).json({ error: "Cannot delete protected workspace items" });
   }
 
-  const { error } = await sb.from("workspace_files")
-    .delete()
-    .eq("user_id", req.user.id)
-    .eq("path", filePath);
-  if (error) return res.status(500).json({ error: error.message });
+  // Delete the item itself and (if directory) all descendants
+  const [r1, r2] = await Promise.all([
+    sb.from("workspace_files").delete().eq("user_id", req.user.id).eq("path", filePath),
+    sb.from("workspace_files").delete().eq("user_id", req.user.id).like("path", `${filePath}/%`),
+  ]);
+  const err = r1.error ?? r2.error;
+  if (err) return res.status(500).json({ error: err.message });
   res.json({ status: "ok" });
 });
 
@@ -293,20 +296,29 @@ router.post("/directories", requireAuth, async (req, res) => {
   const safeName = rawName.replace(/[^a-zA-Z0-9 _-]/g, "").trim();
   if (!safeName) return res.status(400).json({ error: "Invalid directory name" });
 
-  const { error } = await sb.from("workspace_files").upsert(
-    {
-      user_id: req.user.id,
-      path: safeName,
-      name: safeName,
-      content: null,
-      mime_type: null,
-      size_bytes: 0,
-      is_directory: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "user_id,path" }
-  );
-  if (error) return res.status(500).json({ error: error.message });
+  const uid = req.user.id;
+  const now = new Date().toISOString();
+  const uo  = { onConflict: "user_id,path", ignoreDuplicates: true };
+
+  const results = await Promise.all([
+    // The workstation directory itself
+    sb.from("workspace_files").upsert(
+      { user_id: uid, path: safeName, name: safeName, content: null, mime_type: null, size_bytes: 0, is_directory: true, updated_at: now }, uo
+    ),
+    // Default files inside the workstation
+    sb.from("workspace_files").upsert(
+      { user_id: uid, path: `${safeName}/CLAUDE.md`,  name: "CLAUDE.md",  content: DEFAULT_CLAUDE_MD,  mime_type: "text/markdown", size_bytes: DEFAULT_CLAUDE_MD.length,  is_directory: false, updated_at: now }, uo
+    ),
+    sb.from("workspace_files").upsert(
+      { user_id: uid, path: `${safeName}/MEMORY.md`,  name: "MEMORY.md",  content: DEFAULT_MEMORY_MD,  mime_type: "text/markdown", size_bytes: DEFAULT_MEMORY_MD.length,  is_directory: false, updated_at: now }, uo
+    ),
+    sb.from("workspace_files").upsert(
+      { user_id: uid, path: `${safeName}/00_Resources`, name: "00_Resources", content: null, mime_type: null, size_bytes: 0, is_directory: true, updated_at: now }, uo
+    ),
+  ]);
+
+  const err = results.find(r => r.error)?.error;
+  if (err) return res.status(500).json({ error: err.message });
   res.json({ status: "ok", path: safeName });
 });
 
