@@ -2380,6 +2380,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   const itemContentRef = React.useRef("");
   const itemPanelRef = React.useRef(null);
   const autoSaveTimer = React.useRef(null);
+  const isDirtyRef = React.useRef(false); // only save when user has actually typed
 
   // Directory
   const [files, setFiles] = React.useState([]);
@@ -2441,7 +2442,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     if (!itemPanel) { clearInterval(autoSaveTimer.current); autoSaveTimer.current = null; return; }
     clearInterval(autoSaveTimer.current);
     autoSaveTimer.current = setInterval(
-      () => doSaveItem(itemPanelRef.current, itemContentRef.current), 5000
+      () => { if (isDirtyRef.current) doSaveItem(itemPanelRef.current, itemContentRef.current); }, 5000
     );
     return () => clearInterval(autoSaveTimer.current);
   }, [itemPanel?.ruleId, itemPanel?.item]);
@@ -2505,8 +2506,9 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   // ── Item panel ───────────────────────────────────────────────────────
   async function openItemPanel(rule, item) {
-    // Save current before switching
-    if (itemPanel && itemPanelRef.current) await doSaveItem(itemPanelRef.current, itemContentRef.current);
+    // Save current before switching (only if user actually typed something)
+    if (itemPanel && itemPanelRef.current && isDirtyRef.current) await doSaveItem(itemPanelRef.current, itemContentRef.current);
+    isDirtyRef.current = false;
     const panel = { ruleId: rule.id, ruleLabel: rule.label, item };
     itemPanelRef.current = panel;
     setItemPanel(panel);
@@ -2543,9 +2545,9 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   }
 
   async function closeItemPanel(save = true) {
-    if (save && itemPanel) await doSaveItem(itemPanel, itemContentRef.current);
+    if (save && itemPanel && isDirtyRef.current) await doSaveItem(itemPanel, itemContentRef.current);
     clearInterval(autoSaveTimer.current); autoSaveTimer.current = null;
-    itemPanelRef.current = null;
+    itemPanelRef.current = null; isDirtyRef.current = false;
     setItemPanel(null); setItemContent(""); itemContentRef.current = "";
     setItemIsDefault(false);
   }
@@ -2595,13 +2597,25 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
       const hasClaude = files.some(f => f.path === `${dir.path}/CLAUDE.md`);
       if (!hasClaude) {
         try {
-          await apiFetchWorkspace("/api/workspace/directories", {
+          const r = await apiFetchWorkspace("/api/workspace/directories", {
             method: "POST", body: JSON.stringify({ name: dir.name })
           });
-          await loadFiles();
-        } catch {}
+          if (r.ok) await loadFiles();
+        } catch (e) { console.warn("[navigateInto] auto-init failed:", e.message); }
       }
     }
+  }
+
+  async function initWorkstation(dirPath) {
+    const name = dirPath.split("/").pop();
+    setDirLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/directories", {
+        method: "POST", body: JSON.stringify({ name })
+      });
+      if (r.ok) await loadFiles();
+    } catch (e) { console.warn("[initWorkstation] failed:", e.message); }
+    setDirLoading(false);
   }
 
   function navigateTo(path) {
@@ -2709,7 +2723,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
                     className="ws-textarea"
                     style={{ flex:1, minHeight:0, resize:"none" }}
                     value={itemContent}
-                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; if (itemIsDefault) setItemIsDefault(false); }}
+                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; isDirtyRef.current = true; if (itemIsDefault) setItemIsDefault(false); }}
                     placeholder={`No server-side default found for "${itemPanel.item}".\n\nWrite your own definition — it will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
                     spellCheck={false}
                     autoFocus
@@ -2869,9 +2883,17 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
                             )}
                           </div>
                         ))}
-                        {items.length === 0 && (
-                          <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>Empty</div>
-                        )}
+                        {items.length === 0 && (() => {
+                          const isUninitializedWorkstation = currentPath && !currentPath.includes("/") &&
+                            !files.some(f => f.path === `${currentPath}/CLAUDE.md`);
+                          return isUninitializedWorkstation
+                            ? <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>
+                                <div>Workstation not initialized.</div>
+                                <button className="ws-btn" style={{marginTop:8,padding:"4px 10px",fontSize:10}}
+                                  onClick={() => initWorkstation(currentPath)}>Initialize Workstation</button>
+                              </div>
+                            : <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>Empty</div>;
+                        })()}
                       </div>
 
                       {/* Upload — always visible, goes to correct 00_Resources */}

@@ -356,7 +356,9 @@ router.get("/context", requireAuth, async (req, res) => {
       claudeMd,
       memoryMd,
       resources: resources.map(f => ({ path: f.path, name: f.name, mime_type: f.mime_type })),
-      files: allFiles.map(f => ({ path: f.path, name: f.name, is_directory: f.is_directory, mime_type: f.mime_type })),
+      files: allFiles
+        .filter(f => !f.path.startsWith("_context/"))
+        .map(f => ({ path: f.path, name: f.name, is_directory: f.is_directory, mime_type: f.mime_type })),
     });
   } catch (err) {
     console.error("[workspace/context]", err.message);
