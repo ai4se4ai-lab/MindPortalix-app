@@ -87,11 +87,17 @@ function getSupabase(accessToken) {
   return createClient(url, key, opts);
 }
 
+// ── Test-only injection hook (never called in production) ────────────────────
+let _testClientFactory = null;
+export function _setSupabaseFactory(fn) { _testClientFactory = fn; }
+export function _resetSupabaseFactory()  { _testClientFactory = null; }
+function _getClient(t) { return _testClientFactory ? _testClientFactory(t) : getSupabase(t); }
+
 // ── Workspace init ───────────────────────────────────────────────────────────
 
 router.post("/init", requireAuth, async (req, res) => {
   const { id: userId } = req.user;
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.json({ status: "no-db" });
 
   try {
@@ -125,7 +131,7 @@ router.post("/init", requireAuth, async (req, res) => {
 // ── Agent config ─────────────────────────────────────────────────────────────
 
 router.get("/agent-config", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.json({ mermaid_diagram: DEFAULT_MERMAID, agent_overrides: {} });
 
   const { data } = await sb.from("user_agent_configs")
@@ -137,7 +143,7 @@ router.get("/agent-config", requireAuth, async (req, res) => {
 });
 
 router.put("/agent-config", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const { mermaid_diagram, agent_overrides } = req.body;
@@ -152,7 +158,7 @@ router.put("/agent-config", requireAuth, async (req, res) => {
 // ── Context injection ────────────────────────────────────────────────────────
 
 router.get("/context-injection", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.json({ rules: DEFAULT_CONTEXT_INJECTION });
 
   const { data } = await sb.from("user_context_injection")
@@ -164,7 +170,7 @@ router.get("/context-injection", requireAuth, async (req, res) => {
 });
 
 router.put("/context-injection", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const { rules } = req.body;
@@ -179,7 +185,7 @@ router.put("/context-injection", requireAuth, async (req, res) => {
 // ── Workspace files ──────────────────────────────────────────────────────────
 
 router.get("/files", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.json({ files: [] });
 
   const { data, error } = await sb.from("workspace_files")
@@ -192,7 +198,7 @@ router.get("/files", requireAuth, async (req, res) => {
 });
 
 router.get("/files/*", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const filePath = req.params[0];
@@ -206,7 +212,7 @@ router.get("/files/*", requireAuth, async (req, res) => {
 });
 
 router.put("/files/*", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const filePath = req.params[0];
@@ -231,7 +237,7 @@ router.put("/files/*", requireAuth, async (req, res) => {
 });
 
 router.delete("/files/*", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const filePath = req.params[0];
@@ -253,7 +259,7 @@ router.delete("/files/*", requireAuth, async (req, res) => {
 // ── File upload ──────────────────────────────────────────────────────────────
 
 router.post("/upload", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const { name, content, mime_type, directory } = req.body;
@@ -287,7 +293,7 @@ router.post("/upload", requireAuth, async (req, res) => {
 // ── Create workstation (directory) ───────────────────────────────────────────
 
 router.post("/directories", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) return res.status(503).json({ error: "Database not configured" });
 
   const rawName = (req.body.name ?? "").trim();
@@ -325,7 +331,7 @@ router.post("/directories", requireAuth, async (req, res) => {
 // ── Workspace context summary (used by chat route) ───────────────────────────
 
 router.get("/context", requireAuth, async (req, res) => {
-  const sb = getSupabase(req.token);
+  const sb = _getClient(req.token);
   if (!sb) {
     return res.json({
       mermaidDiagram: DEFAULT_MERMAID,
