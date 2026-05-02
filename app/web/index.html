@@ -910,6 +910,57 @@
   }
   .ws-ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
 
+  /* Clickable ctx item buttons */
+  .ws-ctx-tag-btn {
+    font-family: var(--mono); font-size: 9px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px 2px 7px;
+    color: var(--text3); cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
+    transition: border-color 0.12s, color 0.12s, background 0.12s; white-space: nowrap;
+  }
+  .ws-ctx-tag-btn:hover { border-color: rgba(163,230,53,0.5); color: var(--text); background: var(--bg2); }
+  .ws-ctx-tag-btn.lit { border-color: rgba(163,230,53,0.35); color: var(--accent); background: var(--accent-dim); }
+  .ws-ctx-tag-btn.selected { border-color: var(--accent); background: rgba(163,230,53,0.18); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .ws-ctx-tag-remove {
+    font-size: 11px; line-height: 1; opacity: 0; transition: opacity 0.12s, color 0.12s;
+    padding: 0 1px; margin-left: 1px;
+  }
+  .ws-ctx-tag-btn:hover .ws-ctx-tag-remove { opacity: 0.7; }
+  .ws-ctx-tag-btn:hover .ws-ctx-tag-remove:hover { opacity: 1; color: #f87171; }
+
+  /* Item editor slide-in panel */
+  .item-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 300;
+    background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+  }
+  .item-panel-resize {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    cursor: ew-resize; z-index: 1; border-radius: 0;
+  }
+  .item-panel-resize:hover { background: rgba(163,230,53,0.2); }
+  .item-panel-header {
+    display: flex; align-items: center; gap: 8px; padding: 13px 16px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .item-panel-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .item-panel-close {
+    background: none; border: 1px solid var(--border); color: var(--text3); cursor: pointer;
+    font-size: 14px; padding: 2px 7px; line-height: 1.2; border-radius: 5px;
+    transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
+  }
+  .item-panel-close:hover { border-color: var(--accent); color: var(--accent); }
+  .item-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px; gap: 10px; }
+  .item-panel-meta {
+    font-family: var(--mono); font-size: 9px; color: var(--text3); letter-spacing: 0.04em;
+    padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; flex-shrink: 0;
+  }
+  .item-panel-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .item-panel-autosave { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-left: auto; }
+
 </style>
 </head>
 <body>
@@ -2281,39 +2332,72 @@ function formatBytesWs(n) {
 
 // ── WorkspacePanel ────────────────────────────────────────────────────
 
-function WorkspacePanel({ onWorkspaceUpdate }) {
+function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   const [tab, setTab] = React.useState("directory");
+
+  // Architecture
+  const [mermaidCode, setMermaidCode] = React.useState("");
+  const [archLoading, setArchLoading] = React.useState(false);
   const [savingArch, setSavingArch] = React.useState(false);
   const [archSaved, setArchSaved] = React.useState(false);
-  const [mermaidCode, setMermaidCode] = React.useState("");
-  const [archLoading, setArchLoading] = React.useState(true);
+  const [archError, setArchError] = React.useState("");
+  const archLoaded = React.useRef(false);
+  const mermaidPreviewRef = React.useRef(null);
 
+  // Context injection
   const [ctxRules, setCtxRules] = React.useState([]);
+  const [ctxLoading, setCtxLoading] = React.useState(false);
   const [savingCtx, setSavingCtx] = React.useState(false);
   const [ctxSaved, setCtxSaved] = React.useState(false);
-  const [ctxLoading, setCtxLoading] = React.useState(true);
+  const ctxLoaded = React.useRef(false);
 
+  // Item slide-in panel
+  const [itemPanel, setItemPanel] = React.useState(null); // { ruleId, ruleLabel, item }
+  const [itemContent, setItemContent] = React.useState("");
+  const [itemLoading, setItemLoading] = React.useState(false);
+  const [itemSaved, setItemSaved] = React.useState(false);
+  const [panelWidth, setPanelWidth] = React.useState(380);
+  const itemContentRef = React.useRef("");
+  const itemPanelRef = React.useRef(null);
+  const autoSaveTimer = React.useRef(null);
+
+  // Directory
   const [files, setFiles] = React.useState([]);
   const [selectedFile, setSelectedFile] = React.useState(null);
   const [fileContent, setFileContent] = React.useState("");
   const [fileLoading, setFileLoading] = React.useState(false);
   const [fileSaving, setFileSaving] = React.useState(false);
   const [fileSaved, setFileSaved] = React.useState(false);
-  const [dirLoading, setDirLoading] = React.useState(true);
+  const [dirLoading, setDirLoading] = React.useState(false);
   const [newDirName, setNewDirName] = React.useState("");
   const [creatingDir, setCreatingDir] = React.useState(false);
   const [uploadError, setUploadError] = React.useState("");
+  const dirLoaded = React.useRef(false);
   const fileInputRef = React.useRef(null);
-  const mermaidPreviewRef = React.useRef(null);
 
-  // Load data for each tab
+  // ── Seed from workspaceData — same source as Observatory ────────────
   React.useEffect(() => {
-    if (tab === "architecture") loadArch();
-    if (tab === "context") loadCtx();
-    if (tab === "directory") loadFiles();
+    if (!workspaceData) return;
+    if (!archLoaded.current && workspaceData.mermaidDiagram) {
+      setMermaidCode(workspaceData.mermaidDiagram);
+      archLoaded.current = true;
+    }
+    if (!ctxLoaded.current && workspaceData.contextInjection?.length) {
+      setCtxRules(workspaceData.contextInjection);
+      ctxLoaded.current = true;
+    }
+  }, [workspaceData]);
+
+  // ── Load per-tab data (only once; preserved on tab switch) ───────────
+  React.useEffect(() => {
+    if (tab === "architecture" && !archLoaded.current) loadArch();
+    if (tab === "context" && !ctxLoaded.current) loadCtx();
   }, [tab]);
 
-  // Live Mermaid preview
+  // Directory loads on mount, not on tab switch
+  React.useEffect(() => { if (!dirLoaded.current) loadFiles(); }, []);
+
+  // ── Mermaid live preview ─────────────────────────────────────────────
   React.useEffect(() => {
     if (tab !== "architecture" || !mermaidCode || !mermaidPreviewRef.current || !window.mermaid) return;
     const id = "mermaid-ws-" + Date.now();
@@ -2324,50 +2408,62 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
     window.mermaid.render(id, mermaidCode).then(({ svg }) => {
       if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = svg;
     }).catch(() => {
-      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Invalid diagram</span>';
+      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML =
+        '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Invalid diagram</span>';
     });
   }, [mermaidCode, tab]);
 
+  // ── Auto-save item panel every 5 s ───────────────────────────────────
+  React.useEffect(() => { itemContentRef.current = itemContent; }, [itemContent]);
+
+  React.useEffect(() => {
+    if (!itemPanel) { clearInterval(autoSaveTimer.current); autoSaveTimer.current = null; return; }
+    clearInterval(autoSaveTimer.current);
+    autoSaveTimer.current = setInterval(
+      () => doSaveItem(itemPanelRef.current, itemContentRef.current), 5000
+    );
+    return () => clearInterval(autoSaveTimer.current);
+  }, [itemPanel?.ruleId, itemPanel?.item]);
+
+  // ── Architecture ─────────────────────────────────────────────────────
   async function loadArch() {
     setArchLoading(true);
     try {
       const r = await apiFetchWorkspace("/api/workspace/agent-config");
-      if (r.ok) { const d = await r.json(); setMermaidCode(d.mermaid_diagram ?? ""); }
+      if (r.ok) { const d = await r.json(); setMermaidCode(d.mermaid_diagram ?? ""); archLoaded.current = true; }
     } catch {}
     setArchLoading(false);
   }
 
   async function saveArch() {
-    setSavingArch(true);
+    setSavingArch(true); setArchError("");
     try {
-      await apiFetchWorkspace("/api/workspace/agent-config", {
+      const r = await apiFetchWorkspace("/api/workspace/agent-config", {
         method: "PUT", body: JSON.stringify({ mermaid_diagram: mermaidCode })
       });
-      setArchSaved(true);
-      setTimeout(() => setArchSaved(false), 2000);
-      onWorkspaceUpdate?.();
-    } catch {}
+      if (r.ok) { setArchSaved(true); setTimeout(() => setArchSaved(false), 2000); onWorkspaceUpdate?.(); }
+      else { const d = await r.json().catch(() => ({})); setArchError(d.error ?? "Save failed"); }
+    } catch (err) { setArchError(err.message); }
     setSavingArch(false);
   }
 
+  // ── Context injection ────────────────────────────────────────────────
   async function loadCtx() {
     setCtxLoading(true);
     try {
       const r = await apiFetchWorkspace("/api/workspace/context-injection");
-      if (r.ok) { const d = await r.json(); setCtxRules(d.rules ?? []); }
+      if (r.ok) { const d = await r.json(); setCtxRules(d.rules ?? []); ctxLoaded.current = true; }
     } catch {}
     setCtxLoading(false);
   }
 
-  async function saveCtx() {
+  async function persistCtxRules(rules) {
     setSavingCtx(true);
     try {
-      await apiFetchWorkspace("/api/workspace/context-injection", {
-        method: "PUT", body: JSON.stringify({ rules: ctxRules })
+      const r = await apiFetchWorkspace("/api/workspace/context-injection", {
+        method: "PUT", body: JSON.stringify({ rules })
       });
-      setCtxSaved(true);
-      setTimeout(() => setCtxSaved(false), 2000);
-      onWorkspaceUpdate?.();
+      if (r.ok) { setCtxSaved(true); setTimeout(() => setCtxSaved(false), 2000); onWorkspaceUpdate?.(); }
     } catch {}
     setSavingCtx(false);
   }
@@ -2376,19 +2472,70 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
     setCtxRules(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
   }
 
+  function removeCtxItem(ruleId, item) {
+    if (!confirm(`Remove "${item}" from this category?\n\nThis cannot be undone.`)) return;
+    setCtxRules(prev => {
+      const next = prev.map(r => r.id === ruleId ? { ...r, items: r.items.filter(i => i !== item) } : r);
+      persistCtxRules(next);
+      return next;
+    });
+    if (itemPanel?.ruleId === ruleId && itemPanel?.item === item) closeItemPanel(false);
+  }
+
+  // ── Item panel ───────────────────────────────────────────────────────
+  async function openItemPanel(rule, item) {
+    // Save current before switching
+    if (itemPanel && itemPanelRef.current) await doSaveItem(itemPanelRef.current, itemContentRef.current);
+    const panel = { ruleId: rule.id, ruleLabel: rule.label, item };
+    itemPanelRef.current = panel;
+    setItemPanel(panel);
+    setItemContent(""); itemContentRef.current = "";
+    setItemLoading(true);
+    try {
+      const r = await apiFetchWorkspace(`/api/workspace/files/_context/${rule.id}/${item}`);
+      if (r.ok) { const d = await r.json(); const c = d.content ?? ""; setItemContent(c); itemContentRef.current = c; }
+    } catch {}
+    setItemLoading(false);
+  }
+
+  async function doSaveItem(panel, content) {
+    if (!panel) return;
+    try {
+      await apiFetchWorkspace(`/api/workspace/files/_context/${panel.ruleId}/${panel.item}`, {
+        method: "PUT", body: JSON.stringify({ content, mime_type: "text/markdown" })
+      });
+      setItemSaved(true); setTimeout(() => setItemSaved(false), 1500);
+    } catch {}
+  }
+
+  async function closeItemPanel(save = true) {
+    if (save && itemPanel) await doSaveItem(itemPanel, itemContentRef.current);
+    clearInterval(autoSaveTimer.current); autoSaveTimer.current = null;
+    itemPanelRef.current = null;
+    setItemPanel(null); setItemContent(""); itemContentRef.current = "";
+  }
+
+  function startPanelResize(e) {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = panelWidth;
+    const onMove = ev => setPanelWidth(Math.max(280, Math.min(720, w0 + x0 - ev.clientX)));
+    const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
+  }
+
+  // ── Directory ────────────────────────────────────────────────────────
   async function loadFiles() {
     setDirLoading(true);
     try {
       const r = await apiFetchWorkspace("/api/workspace/files");
-      if (r.ok) { const d = await r.json(); setFiles(d.files ?? []); }
+      if (r.ok) { const d = await r.json(); setFiles(d.files ?? []); dirLoaded.current = true; }
     } catch {}
     setDirLoading(false);
   }
 
   async function openFile(file) {
     if (file.is_directory) return;
-    setSelectedFile(file);
-    setFileLoading(true);
+    setSelectedFile(file); setFileLoading(true);
     try {
       const r = await apiFetchWorkspace(`/api/workspace/files/${file.path}`);
       if (r.ok) { const d = await r.json(); setFileContent(d.content ?? ""); }
@@ -2400,13 +2547,10 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
     if (!selectedFile) return;
     setFileSaving(true);
     try {
-      await apiFetchWorkspace(`/api/workspace/files/${selectedFile.path}`, {
+      const r = await apiFetchWorkspace(`/api/workspace/files/${selectedFile.path}`, {
         method: "PUT", body: JSON.stringify({ content: fileContent, mime_type: selectedFile.mime_type })
       });
-      setFileSaved(true);
-      setTimeout(() => setFileSaved(false), 2000);
-      await loadFiles();
-      onWorkspaceUpdate?.();
+      if (r.ok) { setFileSaved(true); setTimeout(() => setFileSaved(false), 2000); await loadFiles(); onWorkspaceUpdate?.(); }
     } catch {}
     setFileSaving(false);
   }
@@ -2417,8 +2561,7 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
     try {
       await apiFetchWorkspace(`/api/workspace/files/${file.path}`, { method: "DELETE" });
       if (selectedFile?.path === file.path) { setSelectedFile(null); setFileContent(""); }
-      await loadFiles();
-      onWorkspaceUpdate?.();
+      await loadFiles(); onWorkspaceUpdate?.();
     } catch {}
   }
 
@@ -2429,9 +2572,7 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
       await apiFetchWorkspace("/api/workspace/directories", {
         method: "POST", body: JSON.stringify({ name: newDirName.trim() })
       });
-      setNewDirName("");
-      await loadFiles();
-      onWorkspaceUpdate?.();
+      setNewDirName(""); await loadFiles(); onWorkspaceUpdate?.();
     } catch {}
     setCreatingDir(false);
   }
@@ -2441,48 +2582,75 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["md", "pdf", "csv", "txt"].includes(ext)) {
-      setUploadError("Only .md, .pdf, .csv, .txt files allowed");
-      return;
-    }
-    if (file.size > 8 * 1024 * 1024) {
-      setUploadError("File too large (max 8 MB)");
-      return;
-    }
+    if (!["md","pdf","csv","txt"].includes(ext)) { setUploadError("Only .md, .pdf, .csv, .txt files allowed"); return; }
+    if (file.size > 8*1024*1024) { setUploadError("File too large (max 8 MB)"); return; }
     const reader = new FileReader();
     reader.onload = async (ev) => {
-      const content = ev.target.result;
       try {
         const r = await apiFetchWorkspace("/api/workspace/upload", {
           method: "POST",
-          body: JSON.stringify({ name: file.name, content, mime_type: file.type || "application/octet-stream" })
+          body: JSON.stringify({ name: file.name, content: ev.target.result, mime_type: file.type || "application/octet-stream" })
         });
         if (!r.ok) { const d = await r.json(); setUploadError(d.error ?? "Upload failed"); return; }
-        await loadFiles();
-        onWorkspaceUpdate?.();
+        await loadFiles(); onWorkspaceUpdate?.();
       } catch (err) { setUploadError(err.message); }
     };
-    if (["md", "csv", "txt"].includes(ext)) reader.readAsText(file);
-    else reader.readAsDataURL(file);
+    if (["md","csv","txt"].includes(ext)) reader.readAsText(file); else reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  // Group files into dirs and root
   const rootFiles = files.filter(f => !f.path.includes("/") && !f.is_directory);
-  const dirs = files.filter(f => f.is_directory);
   const resourceFiles = files.filter(f => f.path.startsWith("00_Resources/"));
-  const workstations = dirs.filter(d => d.name !== "00_Resources");
+  const workstations = files.filter(f => f.is_directory && f.name !== "00_Resources");
 
   return (
     <div className="ws-wrap">
+
+      {/* ── Item editor slide-in panel ──────────────────────────── */}
+      {itemPanel && (
+        <div className="item-panel" style={{ width: panelWidth }}>
+          <div className="item-panel-resize" onMouseDown={startPanelResize} />
+          <div className="item-panel-header">
+            <span className="item-panel-title">{itemPanel.ruleLabel} · {itemPanel.item}</span>
+            <button className="item-panel-close" onClick={() => closeItemPanel(true)}>×</button>
+          </div>
+          <div className="item-panel-body">
+            {itemLoading
+              ? <div style={{ color:"var(--text3)", fontFamily:"var(--mono)", fontSize:12 }}>Loading…</div>
+              : <>
+                  <div className="item-panel-meta">
+                    _context/{itemPanel.ruleId}/{itemPanel.item} · injected when category is active
+                  </div>
+                  <textarea
+                    className="ws-textarea"
+                    style={{ flex:1, minHeight:0, resize:"none" }}
+                    value={itemContent}
+                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; }}
+                    placeholder={`Describe "${itemPanel.item}" here.\n\nThis content will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
+                    spellCheck={false}
+                    autoFocus
+                  />
+                  <div className="item-panel-row">
+                    <button className="ws-btn" style={{ padding:"5px 12px", fontSize:11 }}
+                      onClick={() => doSaveItem(itemPanel, itemContentRef.current)}>Save</button>
+                    <span className={`ws-save-status${itemSaved ? "" : " hidden"}`}>Saved</span>
+                    <span className="item-panel-autosave">auto-saves every 5s</span>
+                  </div>
+                </>
+            }
+          </div>
+        </div>
+      )}
+
       <div className="ws-header">
         <span className="ws-title">My Workspace</span>
         <div className="ws-tabs">
-          {[["directory","Directory"], ["context","Context Injection"], ["architecture","Agent Architecture"]].map(([id, label]) => (
-            <button key={id} className={`ws-tab${tab === id ? " active" : ""}`} onClick={() => setTab(id)}>{label}</button>
+          {[["directory","Directory"],["context","Context Injection"],["architecture","Agent Architecture"]].map(([id,label]) => (
+            <button key={id} className={`ws-tab${tab===id?" active":""}`} onClick={() => setTab(id)}>{label}</button>
           ))}
         </div>
       </div>
+
       <div className="ws-body">
 
         {/* ── Architecture tab ── */}
@@ -2490,26 +2658,28 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
           <div className="ws-content">
             <div className="ws-section">
               <div className="ws-section-title"><span className="ws-section-title-dot"/>Mermaid Diagram</div>
-              {archLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div> : <>
-                <textarea
-                  className="ws-textarea"
-                  style={{ minHeight: 220, fontFamily: "var(--mono)", fontSize: 11 }}
-                  value={mermaidCode}
-                  onChange={e => setMermaidCode(e.target.value)}
-                  spellCheck={false}
-                  placeholder="flowchart TD&#10;  ..."
-                />
-                <div className="ws-actions">
-                  <button className="ws-btn" onClick={saveArch} disabled={savingArch}>
-                    {savingArch ? "Saving…" : "Save"}
-                  </button>
-                  <span className={`ws-save-status${archSaved ? "" : " hidden"}`}>Saved</span>
-                </div>
-              </>}
+              {archLoading
+                ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                : <>
+                    <textarea
+                      className="ws-textarea"
+                      style={{ minHeight:220, fontFamily:"var(--mono)", fontSize:11 }}
+                      value={mermaidCode}
+                      onChange={e => setMermaidCode(e.target.value)}
+                      spellCheck={false}
+                      placeholder="flowchart TD&#10;  ..."
+                    />
+                    <div className="ws-actions">
+                      <button className="ws-btn" onClick={saveArch} disabled={savingArch}>{savingArch ? "Saving…" : "Save"}</button>
+                      <span className={`ws-save-status${archSaved ? "" : " hidden"}`}>Saved</span>
+                      {archError && <span style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginLeft:8}}>{archError}</span>}
+                    </div>
+                  </>
+              }
             </div>
             <div className="ws-section">
               <div className="ws-section-title"><span className="ws-section-title-dot"/>Preview</div>
-              <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: 16, overflowX: "auto", minHeight: 80 }}>
+              <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:8,padding:16,overflowX:"auto",minHeight:80}}>
                 <div ref={mermaidPreviewRef} className="mermaid-container" />
               </div>
             </div>
@@ -2521,27 +2691,38 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
           <div className="ws-content">
             <div className="ws-section">
               <div className="ws-section-title"><span className="ws-section-title-dot"/>Context Injection Rules</div>
-              <p style={{fontSize:12,color:"var(--text3)",marginBottom:14,fontFamily:"var(--mono)"}}>Toggle which context categories are injected into agent prompts during chat.</p>
-              {ctxLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div> :
-                ctxRules.map(rule => (
-                  <div key={rule.id} className={`ws-ctx-rule${rule.active ? " active-rule" : ""}`}>
-                    <div className="ws-ctx-rule-header">
-                      <span className="ws-ctx-rule-label">{rule.label}</span>
-                      <button
-                        className={`ws-toggle${rule.active ? " on" : " off"}`}
-                        onClick={() => toggleRule(rule.id)}
-                        title={rule.active ? "Disable" : "Enable"}
-                      />
+              <p style={{fontSize:12,color:"var(--text3)",marginBottom:14,fontFamily:"var(--mono)"}}>
+                Toggle categories. Click an item to edit its injected content. Click <strong style={{color:"var(--text2)"}}>−</strong> to remove it.
+              </p>
+              {ctxLoading
+                ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                : ctxRules.map(rule => (
+                    <div key={rule.id} className={`ws-ctx-rule${rule.active ? " active-rule" : ""}`}>
+                      <div className="ws-ctx-rule-header">
+                        <span className="ws-ctx-rule-label">{rule.label}</span>
+                        <button className={`ws-toggle${rule.active?" on":" off"}`}
+                          onClick={() => toggleRule(rule.id)} title={rule.active ? "Disable" : "Enable"} />
+                      </div>
+                      <div className="ws-ctx-items">
+                        {rule.items.map(item => (
+                          <button
+                            key={item}
+                            className={`ws-ctx-tag-btn${rule.active?" lit":""}${itemPanel?.ruleId===rule.id&&itemPanel?.item===item?" selected":""}`}
+                            onClick={() => openItemPanel(rule, item)}
+                            title={`Edit "${item}" content`}
+                          >
+                            {item}
+                            <span className="ws-ctx-tag-remove" title={`Remove ${item}`}
+                              onClick={ev => { ev.stopPropagation(); removeCtxItem(rule.id, item); }}>−</span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <div className="ws-ctx-items">
-                      {rule.items.map(item => <span key={item} className={`ws-ctx-tag${rule.active ? " lit" : ""}`}>{item}</span>)}
-                    </div>
-                  </div>
-                ))
+                  ))
               }
               {!ctxLoading && (
                 <div className="ws-actions" style={{marginTop:16}}>
-                  <button className="ws-btn" onClick={saveCtx} disabled={savingCtx}>{savingCtx ? "Saving…" : "Save"}</button>
+                  <button className="ws-btn" onClick={() => persistCtxRules(ctxRules)} disabled={savingCtx}>{savingCtx ? "Saving…" : "Save"}</button>
                   <span className={`ws-save-status${ctxSaved ? "" : " hidden"}`}>Saved</span>
                 </div>
               )}
@@ -2551,13 +2732,11 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
 
         {/* ── Directory tab ── */}
         {tab === "directory" && (
-          <div className="ws-content" style={{ display: "flex", gap: 20, minHeight: 0 }}>
-            {/* Left: file browser */}
-            <div style={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 0 }}>
+          <div className="ws-content" style={{display:"flex",gap:20,minHeight:0}}>
+            <div style={{width:260,flexShrink:0,display:"flex",flexDirection:"column",gap:0}}>
               <div className="ws-section-title" style={{marginBottom:8}}><span className="ws-section-title-dot"/>Files</div>
               {dirLoading ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:11}}>Loading…</div> : <>
                 <div className="ws-file-list">
-                  {/* Root text files */}
                   {rootFiles.map(f => (
                     <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`} onClick={() => openFile(f)}>
                       <span className="ws-file-icon"><FileIcon/></span>
@@ -2565,8 +2744,7 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
                       <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
                     </div>
                   ))}
-                  {/* 00_Resources dir */}
-                  <div key="00_Resources" className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
+                  <div className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
                     <span className="ws-file-icon"><FolderIcon/></span>
                     <span className="ws-file-name">00_Resources/</span>
                     <span className="ws-file-meta">{resourceFiles.length} file{resourceFiles.length!==1?"s":""}</span>
@@ -2579,9 +2757,8 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
                       <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
                     </div>
                   ))}
-                  {/* Workstations */}
                   {workstations.map(ws => {
-                    const wsFiles = files.filter(f => f.path.startsWith(ws.name + "/") && !f.is_directory);
+                    const wsFiles = files.filter(f => f.path.startsWith(ws.name+"/") && !f.is_directory);
                     return (
                       <React.Fragment key={ws.path}>
                         <div className="ws-file-item" style={{borderColor:"var(--border-strong)"}}>
@@ -2601,8 +2778,6 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
                     );
                   })}
                 </div>
-
-                {/* Upload */}
                 <div style={{marginBottom:12}}>
                   <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>Upload to 00_Resources</div>
                   <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
@@ -2611,8 +2786,6 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
                   <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt" style={{display:"none"}} onChange={handleUpload}/>
                   {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
                 </div>
-
-                {/* Create workstation */}
                 <div>
                   <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>New Workstation</div>
                   <div style={{display:"flex",gap:6,alignItems:"center"}}>
@@ -2630,44 +2803,31 @@ function WorkspacePanel({ onWorkspaceUpdate }) {
                 </div>
               </>}
             </div>
-
-            {/* Divider */}
             <div style={{width:1,background:"var(--border)",flexShrink:0,alignSelf:"stretch"}}/>
-
-            {/* Right: file editor */}
             <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
-              {!selectedFile ? (
-                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>
-                  Select a file to edit
-                </div>
-              ) : (
-                <>
-                  <div className="ws-section-title" style={{marginBottom:8}}>
-                    <span className="ws-section-title-dot"/>
-                    {selectedFile.path}
-                  </div>
-                  {fileLoading ? (
-                    <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
-                  ) : (
-                    <>
-                      <textarea
-                        className="ws-textarea"
-                        style={{flex:1,minHeight:300,resize:"none"}}
-                        value={fileContent}
-                        onChange={e => setFileContent(e.target.value)}
-                        spellCheck={false}
-                      />
-                      <div className="ws-actions" style={{marginTop:10}}>
-                        <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
-                        <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
-                        {!["CLAUDE.md","MEMORY.md","00_Resources"].includes(selectedFile.path) && (
-                          <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}} onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
+              {!selectedFile
+                ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Select a file to edit</div>
+                : <>
+                    <div className="ws-section-title" style={{marginBottom:8}}>
+                      <span className="ws-section-title-dot"/>{selectedFile.path}
+                    </div>
+                    {fileLoading
+                      ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                      : <>
+                          <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
+                            value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
+                          <div className="ws-actions" style={{marginTop:10}}>
+                            <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
+                            <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
+                            {!["CLAUDE.md","MEMORY.md","00_Resources"].includes(selectedFile.path) && (
+                              <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
+                                onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+                            )}
+                          </div>
+                        </>
+                    }
+                  </>
+              }
             </div>
           </div>
         )}
@@ -2780,7 +2940,7 @@ function App() {
           <ChatScreen session={session} onLogout={() => setSession(null)} />
         </div>
         <div className="page-slot" style={{ display: page === "workspace" ? "flex" : "none" }}>
-          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} />
+          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} workspaceData={workspaceData} />
         </div>
         <div className="page-slot" style={{ display: page === "observatory" ? "flex" : "none" }}>
           <ContextObservatory workspaceData={workspaceData} />

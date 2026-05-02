@@ -181,6 +181,7 @@ router.get("/files", requireAuth, async (req, res) => {
   const { data, error } = await sb.from("workspace_files")
     .select("id, path, name, mime_type, size_bytes, is_directory, created_at, updated_at")
     .eq("user_id", req.user.id)
+    .not("path", "like", "_context/%")
     .order("path");
   if (error) return res.status(500).json({ error: error.message });
   res.json({ files: data ?? [] });
