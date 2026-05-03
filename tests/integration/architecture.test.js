@@ -375,44 +375,53 @@ describe("applyArchitectureFilter — route filtering by architecture", () => {
 
 describe("buildContextInjectionContent — context assembly", () => {
 
-  it("empty contextInjection array → empty string", async () => {
-    const result = await buildContextInjectionContent([]);
-    assert.equal(result, "");
+  // buildContextInjectionContent now returns { content, details }
+
+  it("empty contextInjection array → empty content string", async () => {
+    const { content, details } = await buildContextInjectionContent([]);
+    assert.equal(content, "");
+    assert.deepEqual(details, []);
   });
 
-  it("null contextInjection → empty string", async () => {
-    const result = await buildContextInjectionContent(null);
-    assert.equal(result, "");
+  it("null contextInjection → empty content string", async () => {
+    const { content, details } = await buildContextInjectionContent(null);
+    assert.equal(content, "");
+    assert.deepEqual(details, []);
   });
 
-  it("all categories disabled → empty string", async () => {
+  it("all categories disabled → empty content string", async () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"], active: false },
       { id: "rules",  label: "Rules",  items: ["general"],         active: false },
     ];
-    const result = await buildContextInjectionContent(rules);
-    assert.equal(result, "");
+    const { content, details } = await buildContextInjectionContent(rules);
+    assert.equal(content, "");
+    assert.deepEqual(details, []);
   });
 
-  it("enabled category with existing disk file → content is included", async () => {
-    // skills/model-selection.md is guaranteed to exist on disk (checked in workspace-isolation tests)
+  it("enabled category with existing disk file → content is included + details populated", async () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"], active: true },
     ];
-    const result = await buildContextInjectionContent(rules);
-    assert.ok(result.length > 0, "should produce non-empty output");
-    assert.ok(result.includes("# Workspace Context Configuration"), "should have header");
-    assert.ok(result.includes("## Skills"), "should have Skills section");
-    assert.ok(result.includes("### model-selection"), "should have item heading");
+    const { content, details } = await buildContextInjectionContent(rules);
+    assert.ok(content.length > 0, "should produce non-empty content");
+    assert.ok(content.includes("# Workspace Context Configuration"), "should have header");
+    assert.ok(content.includes("## Skills"), "should have Skills section");
+    assert.ok(content.includes("### model-selection"), "should have item heading");
+    assert.equal(details.length, 1, "one detail entry for model-selection");
+    assert.equal(details[0].category, "skills");
+    assert.equal(details[0].item, "model-selection");
+    assert.equal(details[0].source, "disk");
+    assert.ok(details[0].excerpt.length > 0, "excerpt must be populated");
   });
 
   it("enabled category with missing disk file is skipped gracefully (no throw)", async () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["does-not-exist-xyz-abc"], active: true },
     ];
-    // Should not throw — missing file is silently skipped
-    const result = await buildContextInjectionContent(rules);
-    assert.equal(result, "", "missing file should produce empty output");
+    const { content, details } = await buildContextInjectionContent(rules);
+    assert.equal(content, "", "missing file should produce empty content");
+    assert.deepEqual(details, [], "missing file should produce no details");
   });
 
   it("personal copy in workspaceFiles takes precedence over disk file", async () => {
@@ -423,21 +432,22 @@ describe("buildContextInjectionContent — context assembly", () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"], active: true },
     ];
-    const result = await buildContextInjectionContent(rules, workspaceFiles);
-    assert.ok(result.includes("Personal model selection"), "personal copy content should appear");
-    assert.ok(result.includes("### model-selection"), "item heading should appear");
+    const { content, details } = await buildContextInjectionContent(rules, workspaceFiles);
+    assert.ok(content.includes("Personal model selection"), "personal copy content should appear");
+    assert.ok(content.includes("### model-selection"), "item heading should appear");
+    assert.equal(details[0].source, "personal", "source should be 'personal'");
+    assert.ok(details[0].excerpt.includes("Always pick cheapest"), "excerpt from personal copy");
   });
 
   it("empty personal copy falls through to disk file", async () => {
     const workspaceFiles = [
-      { path: "_context/skills/model-selection", content: "" }, // empty — falls through
+      { path: "_context/skills/model-selection", content: "" },
     ];
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"], active: true },
     ];
-    const result = await buildContextInjectionContent(rules, workspaceFiles);
-    // Falls through to disk — should have real content (not the empty personal copy)
-    assert.ok(result.length > 0, "should fall through to disk content");
+    const { content } = await buildContextInjectionContent(rules, workspaceFiles);
+    assert.ok(content.length > 0, "should fall through to disk content");
   });
 
   it("whitespace-only personal copy falls through to disk file", async () => {
@@ -447,18 +457,19 @@ describe("buildContextInjectionContent — context assembly", () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"], active: true },
     ];
-    const result = await buildContextInjectionContent(rules, workspaceFiles);
-    assert.ok(result.length > 0, "whitespace personal copy should fall through to disk");
+    const { content } = await buildContextInjectionContent(rules, workspaceFiles);
+    assert.ok(content.length > 0, "whitespace personal copy should fall through to disk");
   });
 
-  it("multiple enabled categories each produce a section", async () => {
+  it("multiple enabled categories each produce a section and detail entries", async () => {
     const rules = [
       { id: "skills", label: "Skills", items: ["model-selection"],  active: true },
       { id: "rules",  label: "Rules",  items: ["general"],          active: true },
     ];
-    const result = await buildContextInjectionContent(rules);
-    assert.ok(result.includes("## Skills"), "Skills section should exist");
-    assert.ok(result.includes("## Rules"),  "Rules section should exist");
+    const { content, details } = await buildContextInjectionContent(rules);
+    assert.ok(content.includes("## Skills"), "Skills section should exist");
+    assert.ok(content.includes("## Rules"),  "Rules section should exist");
+    assert.ok(details.length >= 2, "at least 2 detail entries (one per loaded file)");
   });
 
   it("mix of active and inactive categories — only active ones included", async () => {
@@ -466,9 +477,10 @@ describe("buildContextInjectionContent — context assembly", () => {
       { id: "skills", label: "Skills", items: ["model-selection"], active: true  },
       { id: "rules",  label: "Rules",  items: ["general"],         active: false },
     ];
-    const result = await buildContextInjectionContent(rules);
-    assert.ok(result.includes("## Skills"), "active Skills section present");
-    assert.ok(!result.includes("## Rules"), "inactive Rules section must be absent");
+    const { content, details } = await buildContextInjectionContent(rules);
+    assert.ok(content.includes("## Skills"), "active Skills section present");
+    assert.ok(!content.includes("## Rules"), "inactive Rules section must be absent");
+    assert.ok(details.every(d => d.category === "skills"), "details only from active category");
   });
 });
 

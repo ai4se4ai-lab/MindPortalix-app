@@ -88,28 +88,39 @@ export function applyArchitectureFilter(route, allowedAgents) {
  *
  * Returns a formatted context string, or "" if nothing was loaded.
  */
+/**
+ * @returns {{ content: string, details: Array<{category,label,item,excerpt,source}> }}
+ *   content  — combined context string for the agent system prompt
+ *   details  — structured list of which files were loaded (for the Context Observatory feed)
+ */
 export async function buildContextInjectionContent(contextInjection, workspaceFiles = []) {
   const sections = [];
+  const details = [];
 
   for (const rule of (contextInjection ?? [])) {
     if (!rule.active) continue;
     const itemContents = [];
 
     for (const item of (rule.items ?? [])) {
-      // Personal copy takes precedence (_context/{ruleId}/{item})
       const personalPath = `_context/${rule.id}/${item}`;
       const personal = workspaceFiles.find(f => f.path === personalPath);
+      let rawContent = null;
+      let source = "disk";
+
       if (personal?.content?.trim()) {
-        itemContents.push(`### ${item}\n${personal.content.trim()}`);
-        continue;
+        rawContent = personal.content.trim();
+        source = "personal";
+      } else {
+        try {
+          rawContent = (await readFile(join(ROOT, rule.id, `${item}.md`), "utf8")).trim();
+        } catch {
+          // File absent — skip silently
+        }
       }
 
-      // Disk fallback: {category}/{item}.md
-      try {
-        const content = await readFile(join(ROOT, rule.id, `${item}.md`), "utf8");
-        if (content.trim()) itemContents.push(`### ${item}\n${content.trim()}`);
-      } catch {
-        // File absent — skip silently
+      if (rawContent) {
+        itemContents.push(`### ${item}\n${rawContent}`);
+        details.push({ category: rule.id, label: rule.label, item, excerpt: rawContent.slice(0, 300), source });
       }
     }
 
@@ -118,7 +129,10 @@ export async function buildContextInjectionContent(contextInjection, workspaceFi
     }
   }
 
-  return sections.length > 0
-    ? `# Workspace Context Configuration\n\n${sections.join("\n\n")}`
-    : "";
+  return {
+    content: sections.length > 0
+      ? `# Workspace Context Configuration\n\n${sections.join("\n\n")}`
+      : "",
+    details,
+  };
 }

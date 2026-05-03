@@ -98,6 +98,8 @@ router.post("/", requireAuth, async (req, res) => {
     let workspaceContext = "";
     let contextInjection = DEFAULT_CONTEXT_INJECTION;
     let allowedAgents = null; // null = no architecture restriction
+    let ctxDetails = [];   // skill/rule files loaded — forwarded to Context Observatory
+    let wsMemo = { claudeMd: null, memoryMd: null, resources: [] };
     try {
       const wsRes = await fetch(
         `http://localhost:${process.env.PORT ?? 3000}/api/workspace/context`,
@@ -124,10 +126,21 @@ router.post("/", requireAuth, async (req, res) => {
 
         // Inject enabled context items (skills, rules, agents defs, etc.) from disk
         // Pass personal context-file overrides so _context/{ruleId}/{item} rows are respected
-        const injectedCtx = await buildContextInjectionContent(contextInjection, ws.contextFiles ?? []);
+        const { content: injectedCtx, details } = await buildContextInjectionContent(contextInjection, ws.contextFiles ?? []);
+        ctxDetails = details;
         if (injectedCtx) parts.push(injectedCtx);
 
         workspaceContext = parts.join("\n\n");
+
+        // Snapshot for context_feed broadcast (after route is known)
+        wsMemo = {
+          claudeMd:  ws.claudeMd?.trim()?.slice(0, 500) || null,
+          memoryMd:  ws.memoryMd?.trim()?.slice(0, 500) || null,
+          resources: (ws.resources ?? [])
+            .filter(r => r.content?.trim())
+            .map(r => ({ name: r.name, excerpt: r.content.slice(0, 200) })),
+        };
+
         send("workspace_context", {
           contextInjection,
           hasClaudeMd: Boolean(ws.claudeMd?.trim()),
@@ -145,6 +158,17 @@ router.post("/", requireAuth, async (req, res) => {
     const route = applyArchitectureFilter(rawRoute, allowedAgents);
     send("route", { agents: routeAgentsForUi(route), primary: route.primary });
     await yieldTick();
+
+    // Broadcast live context feed to the Context Observatory
+    broadcast("context_feed", {
+      query:      message.slice(0, 120),
+      agents:     route.agents,
+      memories:   memories.slice(0, 5).map(m => ({ topic: m.topic, summary: m.summary })),
+      claudeMd:   wsMemo.claudeMd,
+      memoryMd:   wsMemo.memoryMd,
+      resources:  wsMemo.resources,
+      skillFiles: ctxDetails,
+    });
 
     const specialistIds = route.agents.filter(id => id !== "reviewer");
 
@@ -399,6 +423,9 @@ router.post("/", requireAuth, async (req, res) => {
       review,
       modelPlan: specialistResults.map(({ agent, model }) => ({ agent, model }))
     });
+
+    // Signal end of this conversation turn to the Context Observatory
+    broadcast("context_turn_end", { query: message.slice(0, 120) });
 
     // Smart MEMORY.md update — runs after the user sees the response so it doesn't add latency.
     // SSE connection is still open here (res.end() is in finally), so we can send memory_updated.

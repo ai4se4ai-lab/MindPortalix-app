@@ -958,11 +958,14 @@ describe("Concurrent personal copy creation — three users personalise the same
 
     const rules = [{ id: "skills", label: "Skills", items: ["agent-orchestration"], active: true }];
 
-    const [aliceCtx, bobCtx, carolCtx] = await Promise.all([
+    const [aliceRes, bobRes, carolRes] = await Promise.all([
       buildContextInjectionContent(rules, aliceFiles),
       buildContextInjectionContent(rules, bobFiles),
       buildContextInjectionContent(rules, carolFiles),
     ]);
+    const aliceCtx = aliceRes.content;
+    const bobCtx   = bobRes.content;
+    const carolCtx = carolRes.content;
 
     assert.ok( aliceCtx.includes("Alice-specific"), "buildContextInjectionContent: Alice personal copy used");
     assert.ok(!aliceCtx.includes("Bob-specific"),   "buildContextInjectionContent: Bob's copy absent for Alice");
