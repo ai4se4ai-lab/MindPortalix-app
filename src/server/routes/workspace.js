@@ -379,6 +379,9 @@ router.get("/context", requireAuth, async (req, res) => {
       files: allFiles
         .filter(f => !f.path.startsWith("_context/"))
         .map(f => ({ path: f.path, name: f.name, is_directory: f.is_directory, mime_type: f.mime_type })),
+      contextFiles: allFiles
+        .filter(f => f.path.startsWith("_context/") && !f.is_directory)
+        .map(f => ({ path: f.path, content: f.content })),
     });
   } catch (err) {
     console.error("[workspace/context]", err.message);

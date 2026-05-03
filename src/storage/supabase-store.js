@@ -199,6 +199,37 @@ export class SupabaseMemoryStore {
       throw new Error(`Conversation delete failed: ${error.message}`);
     }
   }
+
+  async readWorkspaceFile(userId, filePath) {
+    const { data, error } = await this.client
+      .from("workspace_files")
+      .select("content")
+      .eq("user_id", userId)
+      .eq("path", filePath)
+      .single();
+    if (error) return null;
+    return data?.content ?? null;
+  }
+
+  async writeWorkspaceFile(userId, filePath, content) {
+    const name = filePath.split("/").pop();
+    const { error } = await this.client
+      .from("workspace_files")
+      .upsert(
+        {
+          user_id: userId,
+          path: filePath,
+          name,
+          content,
+          mime_type: "text/markdown",
+          size_bytes: content.length,
+          is_directory: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,path" }
+      );
+    if (error) throw new Error(`Workspace file write failed: ${error.message}`);
+  }
 }
 
 function toMemoryRecord(row) {

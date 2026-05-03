@@ -1850,6 +1850,9 @@ function ChatScreen({ session, onLogout }) {
                   ? { ...m, agents, modelPlan, review: ev.review ?? m.review, collaborationSteps } : m));
                 if (convId) fetchConversations();
                 break;
+              case "memory_updated":
+                window.dispatchEvent(new CustomEvent("memory-updated"));
+                break;
               case "error":
                 content = `Error: ${ev.message ?? "Request failed"}`;
                 collaborationSteps = upsertCollabStep(collaborationSteps, {
@@ -2496,6 +2499,13 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   // Directory loads on mount, not on tab switch
   React.useEffect(() => { if (!dirLoaded.current) loadFiles(); }, []);
+
+  // Reload workspace files when a chat turn updates MEMORY.md
+  React.useEffect(() => {
+    function onMemoryUpdated() { loadFiles(); }
+    window.addEventListener("memory-updated", onMemoryUpdated);
+    return () => window.removeEventListener("memory-updated", onMemoryUpdated);
+  }, []);
 
   // ── Mermaid live preview ─────────────────────────────────────────────
   React.useEffect(() => {

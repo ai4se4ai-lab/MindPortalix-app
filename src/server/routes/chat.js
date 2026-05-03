@@ -10,7 +10,7 @@ import {
 import { summarizeForMemory, InMemoryMemoryStore } from "../../storage/memory-store.js";
 import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
-import { getFreeModels } from "../../openrouter/models.js";
+import { getFreeModels, callWithFallback } from "../../openrouter/models.js";
 import { broadcast } from "../../monitor/broadcaster.js";
 import { DEFAULT_CONTEXT_INJECTION } from "./workspace.js";
 import { parseArchitectureAgents, applyArchitectureFilter, buildContextInjectionContent } from "../../orchestration/architecture.js";
@@ -123,7 +123,8 @@ router.post("/", requireAuth, async (req, res) => {
         }
 
         // Inject enabled context items (skills, rules, agents defs, etc.) from disk
-        const injectedCtx = await buildContextInjectionContent(contextInjection);
+        // Pass personal context-file overrides so _context/{ruleId}/{item} rows are respected
+        const injectedCtx = await buildContextInjectionContent(contextInjection, ws.contextFiles ?? []);
         if (injectedCtx) parts.push(injectedCtx);
 
         workspaceContext = parts.join("\n\n");
@@ -379,7 +380,7 @@ router.post("/", requireAuth, async (req, res) => {
       }
     }
 
-    // Write memory summary (best-effort)
+    // Write memory summary to DB (best-effort)
     store.write(
       summarizeForMemory({
         userId,
@@ -398,6 +399,21 @@ router.post("/", requireAuth, async (req, res) => {
       review,
       modelPlan: specialistResults.map(({ agent, model }) => ({ agent, model }))
     });
+
+    // Smart MEMORY.md update — runs after the user sees the response so it doesn't add latency.
+    // SSE connection is still open here (res.end() is in finally), so we can send memory_updated.
+    if (store instanceof SupabaseMemoryStore && (MEMORY_UPDATE_RE.test(message) || route.agents.includes("memory"))) {
+      try {
+        console.log("[memory] updating MEMORY.md for:", message.slice(0, 80));
+        const current = await store.readWorkspaceFile(userId, "MEMORY.md");
+        const updated = await smartUpdateMemoryMd(current, message);
+        console.log("[memory] writing MEMORY.md, length:", updated.length);
+        await store.writeWorkspaceFile(userId, "MEMORY.md", updated);
+        send("memory_updated", {});
+      } catch (err) {
+        console.error("[memory] MEMORY.md update failed:", err.message);
+      }
+    }
   } catch (err) {
     console.error("[chat] error:", err.message);
     send("error", { message: err.message });
@@ -465,6 +481,91 @@ function streamWords(text, onWord) {
 }
 
 export default router;
+
+// ── MEMORY.md write-back helpers ──────────────────────────────────────────────
+
+// Matches any message where the user wants to persist something to memory
+const MEMORY_UPDATE_RE = /\b(remember|note\s+(that|this|my)|make\s+a\s+note|don'?t\s+forget|update\s+(my\s+)?(memory|memory\.md)|add\s+to\s+(my\s+)?(memory|memory\.md)|edit\s+(my\s+)?(memory|memory\.md)|write\s+to\s+(memory|memory\.md)|save\s+(this|my|that)\s+to\s+memory|memory\.md)\b/i;
+
+async function smartUpdateMemoryMd(currentMemory, userRequest) {
+  const base = (currentMemory ?? "").trim();
+
+  // Try LLM-based rewrite first — fall back to deterministic append on any error (429, timeout, etc.)
+  try {
+    const scaffold = base.length > 0 ? base : [
+      "# Memory", "", "## About Me", "", "## Preferences", "", "## Active Projects", "", "## Key Notes",
+    ].join("\n");
+
+    const system = [
+      "You are a memory file editor. Apply the user's instruction to the MEMORY.md file.",
+      "STRICT RULES:",
+      "1. The instruction MUST be reflected in the output — never ignore it.",
+      "2. Personal info / name → '## About Me' (create section if missing).",
+      "3. Preferences, likes, dislikes → '## Preferences' (create if missing).",
+      "4. Projects, work, goals → '## Active Projects' (create if missing).",
+      "5. Everything else → '## Key Notes' (create if missing).",
+      "6. Preserve ALL other existing content unchanged.",
+      "7. Output ONLY the raw file content — no explanation, no code fences.",
+    ].join("\n");
+
+    const prompt = `Current MEMORY.md:\n${scaffold}\n\nInstruction: ${userRequest}\n\nUpdated MEMORY.md (instruction MUST be applied):`;
+
+    const { content } = await callWithFallback({
+      role: "memory",
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ],
+      maxAttempts: 3,
+    });
+
+    const cleaned = content.replace(/^```(?:markdown)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+
+    if (cleaned.length >= Math.max(50, base.length * 0.6)) {
+      return cleaned;
+    }
+    console.warn("[memory] LLM output too short — using deterministic fallback");
+  } catch (err) {
+    console.warn("[memory] LLM unavailable, using deterministic fallback:", err.message.slice(0, 80));
+  }
+
+  // Deterministic fallback: extract the key fact and insert it into the right section
+  return deterministicMemoryAppend(base, userRequest);
+}
+
+function deterministicMemoryAppend(base, userRequest) {
+  const date = new Date().toISOString().slice(0, 10);
+  const lower = userRequest.toLowerCase();
+
+  // Strip common prefixes like "remember that", "update memory.md", etc.
+  const fact = userRequest
+    .replace(/^(please\s+)?(remember\s+(that\s+|this\s+)?|note\s+that\s+|update\s+memory\.md\s*(and\s+)?(add|write|put|set)?\s*|add\s+(to\s+)?(my\s+)?(memory(\.md)?\s*[:\-]?\s*)?|make\s+a\s+note\s+(that\s+)?|don'?t\s+forget\s+(that\s+)?)/i, "")
+    .trim() || userRequest;
+
+  // Pick target section by keyword
+  let section;
+  if (/\b(name|i am|i'?m called|call me|full name|first name|last name)\b/.test(lower)) {
+    section = "## About Me";
+  } else if (/\b(prefer|like|dislike|love|hate|enjoy|favor|favourite|favorite)\b/.test(lower)) {
+    section = "## Preferences";
+  } else if (/\b(project|working on|building|task|goal|assignment)\b/.test(lower)) {
+    section = "## Active Projects";
+  } else {
+    section = "## Key Notes";
+  }
+
+  const entry = `- [${date}] ${fact}`;
+
+  // Ensure the file has a header
+  const withHeader = base.startsWith("#") ? base : `# Memory\n\n${base}`;
+
+  if (withHeader.includes(section)) {
+    // Insert entry right after the section heading
+    return withHeader.replace(section, `${section}\n${entry}`);
+  }
+  // Section missing — append it at the end
+  return `${withHeader.trimEnd()}\n\n${section}\n${entry}\n`;
+}
 
 /** UI route list: show plan executor before reviewer when it will run */
 function routeAgentsForUi(route) {
