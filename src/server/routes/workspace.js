@@ -268,12 +268,17 @@ router.post("/upload", requireAuth, async (req, res) => {
   if (!name || !content) return res.status(400).json({ error: "name and content required" });
 
   const ext = name.split(".").pop()?.toLowerCase();
-  if (!["md", "pdf", "csv", "txt"].includes(ext)) {
-    return res.status(400).json({ error: "Only .md, .pdf, .csv, .txt files are allowed" });
+  if (!["md", "pdf", "csv", "txt", "py"].includes(ext)) {
+    return res.status(400).json({ error: "Only .md, .pdf, .csv, .txt, .py files are allowed" });
   }
 
   const dir = directory ?? "00_Resources";
   const filePath = `${dir}/${name}`;
+
+  const textExts = new Set(["md", "txt", "csv", "py"]);
+  const resolvedMime = textExts.has(ext)
+    ? (mime_type?.startsWith("text/") ? mime_type : "text/plain")
+    : (mime_type ?? "application/octet-stream");
 
   const { error } = await sb.from("workspace_files").upsert(
     {
@@ -281,7 +286,7 @@ router.post("/upload", requireAuth, async (req, res) => {
       path: filePath,
       name,
       content,
-      mime_type: mime_type ?? "application/octet-stream",
+      mime_type: resolvedMime,
       size_bytes: content.length,
       is_directory: false,
       updated_at: new Date().toISOString(),
@@ -363,7 +368,14 @@ router.get("/context", requireAuth, async (req, res) => {
       contextInjection: ctxInj.data?.rules             ?? DEFAULT_CONTEXT_INJECTION,
       claudeMd,
       memoryMd,
-      resources: resources.map(f => ({ path: f.path, name: f.name, mime_type: f.mime_type })),
+      resources: resources.map(f => ({
+        path: f.path,
+        name: f.name,
+        mime_type: f.mime_type,
+        content: (f.mime_type?.startsWith("text/") || f.mime_type === "application/json")
+          ? (f.content ?? "").slice(0, 8192)
+          : null,
+      })),
       files: allFiles
         .filter(f => !f.path.startsWith("_context/"))
         .map(f => ({ path: f.path, name: f.name, is_directory: f.is_directory, mime_type: f.mime_type })),

@@ -1540,10 +1540,11 @@ function ChatScreen({ session, onLogout }) {
 
   async function selectConversation(id) {
     setActiveConvId(id);
+    setMessages([]);  // Clear immediately so stale messages from a different conversation are never visible
     const res = await apiFetch(`/api/conversations/${id}/messages`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
-      setMessages(data.messages.map(m => ({
+      setMessages((data.messages ?? []).map(m => ({
         id: m.id, role: m.role, content: m.content,
         agents: m.agent ? [m.agent] : [],
         model: m.model
@@ -1832,6 +1833,12 @@ function ChatScreen({ session, onLogout }) {
               case "done":
                 // Prefer modelPlan from done event (complete list)
                 if (ev.modelPlan && ev.modelPlan.length) modelPlan = ev.modelPlan;
+                // Use conversationId from done event as fallback in case the conversation
+                // event was missed (e.g. stream interruption between event and client receipt)
+                if (ev.conversationId && !convId) {
+                  convId = ev.conversationId;
+                  setActiveConvId(convId);
+                }
                 collaborationSteps = upsertCollabStep(collaborationSteps, {
                   id: "final",
                   title: "Final response ready",
@@ -2014,13 +2021,42 @@ function useMonitorSSE() {
 // Maps agent IDs to likely node IDs in the default workspace Mermaid diagram
 const AGENT_NODE_ALIASES = { image_generator: "imagegen", audio_generator: "audiogen" };
 
+// Strip %% comment lines before passing to Mermaid — v10.9.x has a parse regression
+// that causes "Syntax error in text" for diagrams containing %% comment lines.
+function stripMermaidComments(str) {
+  return (str ?? "").split("\n").filter(l => !l.trimStart().startsWith("%%")).join("\n");
+}
+
+// Find the actual node ID whose label contains the agent name.
+// This lets highlighting work for custom diagrams like plan[Planner] or orch[Orchestrator].
+function findNodeIdByLabel(diagramStr, agentName) {
+  const target = agentName.replace(/_/g, "").toLowerCase();
+  const labelRe = /\b(\w+)\s*[\[({<]+([^\]})>]*)/g;
+  let m;
+  while ((m = labelRe.exec(diagramStr)) !== null) {
+    if (m[2].toLowerCase().includes(target)) return m[1];
+  }
+  return null;
+}
+
 function applyMermaidHighlight(diagramStr, activeAgent) {
   if (!activeAgent || !diagramStr) return diagramStr ?? "";
-  const nodeId = AGENT_NODE_ALIASES[activeAgent] ?? activeAgent.replace(/_/g, "");
-  const styleLine = `  style ${nodeId} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`;
-  // Only add if the node ID actually appears in the diagram to avoid parse errors
-  if (!diagramStr.includes(nodeId)) return diagramStr;
-  return diagramStr.trimEnd() + "\n" + styleLine;
+  const clean = stripMermaidComments(diagramStr);
+  const aliasId  = AGENT_NODE_ALIASES[activeAgent];
+  const directId = activeAgent.replace(/_/g, "");
+
+  // Prefer alias → direct agent ID → label search (for custom node IDs)
+  let nodeId = null;
+  if (aliasId && new RegExp(`\\b${aliasId}\\b`, "i").test(clean)) {
+    nodeId = aliasId;
+  } else if (new RegExp(`\\b${directId}\\b`, "i").test(clean)) {
+    nodeId = directId;
+  } else {
+    nodeId = findNodeIdByLabel(clean, activeAgent);
+  }
+
+  if (!nodeId) return clean;
+  return clean.trimEnd() + `\n  style ${nodeId} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`;
 }
 
 function useMermaid(containerRef, diagramStr) {
@@ -2042,7 +2078,8 @@ function useMermaid(containerRef, diagramStr) {
       }
     });
     const id = "mermaid-obs-" + Date.now();
-    window.mermaid.render(id, diagramStr).then(({ svg }) => {
+    // Strip comments before render — Mermaid 10.9.x parse regression with %% lines
+    window.mermaid.render(id, stripMermaidComments(diagramStr)).then(({ svg }) => {
       if (containerRef.current) containerRef.current.innerHTML = svg;
     }).catch(() => {});
   }, [diagramStr]);
@@ -2063,10 +2100,27 @@ function AgentDiagramPanel({ activeAgent, workspaceData }) {
   );
 }
 
+// Which specific context items each agent directly uses.
+// Category keys match the contextInjection rule ids (skills, agents, rules, mcps, hooks, memory).
+const AGENT_CONTEXT_MAP = {
+  orchestrator:    { skills: ["agent-orchestration", "prompt-engineering"], agents: ["orchestrator"] },
+  researcher:      { agents: ["researcher"] },
+  reviewer:        { agents: ["reviewer"] },
+  memory:          { agents: ["memory"], memory: ["MEMORY.md"] },
+  coder:           { agents: ["coder"], skills: ["model-selection"], rules: ["api-design", "general", "supabase"] },
+  writer:          { agents: ["writer"], rules: ["general", "styling"] },
+  governor:        { agents: ["governor"], rules: ["general"] },
+  planner:         { agents: ["planner"], skills: ["agent-orchestration", "prompt-engineering"] },
+  executor:        { agents: ["executor"], skills: ["agent-orchestration"] },
+  formatter:       { agents: ["formatter"], rules: ["styling"] },
+  image_generator: { agents: ["image_generator"], skills: ["openrouter"] },
+  audio_generator: { agents: ["audio_generator"], skills: ["openrouter"] },
+};
+
 function ContextInjectionPanel({ activeAgent, workspaceData }) {
   const rules = workspaceData?.contextInjection ?? [];
-  // When an agent is active, all enabled rules are being injected (workspace context goes to all agents)
   const isProcessing = Boolean(activeAgent);
+  const agentProfile = isProcessing ? (AGENT_CONTEXT_MAP[activeAgent] ?? {}) : {};
 
   if (!workspaceData) {
     return <div className="obs-panel-body"><div className="obs-loading"><span>Loading…</span></div></div>;
@@ -2076,10 +2130,11 @@ function ContextInjectionPanel({ activeAgent, workspaceData }) {
     <div className="obs-panel-body">
       <div className="ctx-grid">
         {rules.map(rule => {
-          const isActive = rule.active && isProcessing;
           const isEnabled = rule.active;
+          const profileItems = agentProfile[rule.id] ?? [];
+          const isBoxActive = isEnabled && isProcessing && profileItems.length > 0;
           return (
-            <div key={rule.id} className={`ctx-box${isActive ? " active" : ""}`}
+            <div key={rule.id} className={`ctx-box${isBoxActive ? " active" : ""}`}
               style={!isEnabled ? { opacity: 0.4 } : undefined}>
               <div className="ctx-box-label">
                 <span className="ctx-box-label-dot" />
@@ -2087,9 +2142,12 @@ function ContextInjectionPanel({ activeAgent, workspaceData }) {
                 {!isEnabled && <span style={{ marginLeft: 4, fontFamily: "var(--mono)", fontSize: 8, color: "var(--text3)" }}>off</span>}
               </div>
               <div className="ctx-box-items">
-                {rule.items.map(item => (
-                  <span key={item} className={`ctx-tag${isActive ? " lit" : ""}`}>{item}</span>
-                ))}
+                {rule.items.map(item => {
+                  const isLit = isEnabled && isProcessing && profileItems.includes(item);
+                  return (
+                    <span key={item} className={`ctx-tag${isLit ? " lit" : ""}`}>{item}</span>
+                  );
+                })}
               </div>
             </div>
           );
@@ -2135,14 +2193,32 @@ function DirectoryPanel({ activeAgent, workspaceData }) {
     [workspaceData]
   );
 
-  // Highlight CLAUDE.md always (workspace context loaded); MEMORY.md when memory agent active
+  // Auto-expand all directories when the tree loads or refreshes so the
+  // observatory shows the full hierarchy without requiring manual clicks.
+  // User-initiated collapses are preserved between tree refreshes.
+  React.useEffect(() => {
+    if (!tree) return;
+    setExpanded(prev => {
+      const next = new Set(prev);
+      function addDirs(node) {
+        if (!node || node.type === "file") return;
+        next.add(node.path);
+        (node.children ?? []).forEach(addDirs);
+      }
+      addDirs(tree);
+      return next;
+    });
+  }, [tree]);
+
+  // Highlight only files the active agent is actually reading.
+  // CLAUDE.md and MEMORY.md are highlighted only while an agent is running and
+  // only when the user has content in them (empty files are not injected).
   const highlightedPaths = React.useMemo(() => {
     const paths = new Set();
-    if (workspaceData) {
-      paths.add("CLAUDE.md");
-      if (workspaceData.memoryMd) paths.add("MEMORY.md");
+    if (activeAgent) {
+      if (workspaceData?.claudeMd?.trim()) paths.add("CLAUDE.md");
+      if (workspaceData?.memoryMd?.trim() || activeAgent === "memory") paths.add("MEMORY.md");
     }
-    if (activeAgent === "memory") paths.add("MEMORY.md");
     return paths;
   }, [activeAgent, workspaceData]);
 
@@ -2429,11 +2505,12 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
       background: "#141414", primaryColor: "#1c1c1c", primaryTextColor: "#e8e8e3",
       primaryBorderColor: "#5e5e5e", lineColor: "#5e5e5e",
     }});
-    window.mermaid.render(id, mermaidCode).then(({ svg }) => {
+    // Strip %% comments — Mermaid 10.9.x parse regression
+    window.mermaid.render(id, stripMermaidComments(mermaidCode)).then(({ svg }) => {
       if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = svg;
     }).catch(() => {
       if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML =
-        '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Invalid diagram</span>';
+        '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Syntax error — check your diagram</span>';
     });
   }, [mermaidCode, tab]);
 
@@ -2574,7 +2651,13 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     return files.filter(f => {
       if (!f.path.startsWith(prefix)) return false;
       const rest = f.path.slice(prefix.length);
-      return rest.length > 0 && !rest.includes("/");
+      if (rest.length === 0 || rest.includes("/")) return false;
+      // Inside 00_Resources: exclude ghost entries created by the workstation-init bug
+      if (parentPath.split("/").pop() === "00_Resources") {
+        if (f.name === "00_Resources" && f.is_directory) return false;
+        if (f.name === "CLAUDE.md" || f.name === "MEMORY.md") return false;
+      }
+      return true;
     });
   }
 
@@ -2589,7 +2672,17 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     setDirLoading(true);
     try {
       const r = await apiFetchWorkspace("/api/workspace/files");
-      if (r.ok) { const d = await r.json(); setFiles((d.files ?? []).filter(f => !f.path.startsWith("_context/"))); dirLoaded.current = true; }
+      if (r.ok) {
+        const d = await r.json();
+        const allFiles = (d.files ?? []).filter(f => !f.path.startsWith("_context/"));
+        setFiles(allFiles);
+        dirLoaded.current = true;
+        // Remove stale entries inside 00_Resources created by the workstation-init bug
+        const stale = allFiles.filter(f =>
+          /(?:^|\/)00_Resources\/(00_Resources|CLAUDE\.md|MEMORY\.md)$/.test(f.path)
+        );
+        stale.forEach(f => apiFetchWorkspace(`/api/workspace/files/${f.path}`, { method: "DELETE" }).catch(() => {}));
+      }
     } catch {}
     setDirLoading(false);
   }
@@ -2600,7 +2693,8 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     // Always seed root workstation defaults on entry — POST /directories is idempotent
     // (uses ignoreDuplicates: true) so re-running it for existing workstations is safe.
     // Avoids stale-state race where hasClaude check fires before loadFiles completes.
-    if (!dir.path.includes("/")) {
+    // 00_Resources is not a workstation — skip the init for it.
+    if (!dir.path.includes("/") && dir.name !== "00_Resources") {
       try {
         const r = await apiFetchWorkspace("/api/workspace/directories", {
           method: "POST", body: JSON.stringify({ name: dir.name })
@@ -2684,7 +2778,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     const file = e.target.files?.[0];
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!["md","pdf","csv","txt"].includes(ext)) { setUploadError("Only .md, .pdf, .csv, .txt files allowed"); return; }
+    if (!["md","pdf","csv","txt","py"].includes(ext)) { setUploadError("Only .md, .pdf, .csv, .txt, .py files allowed"); return; }
     if (file.size > 8*1024*1024) { setUploadError("File too large (max 8 MB)"); return; }
     const reader = new FileReader();
     reader.onload = async (ev) => {
@@ -2906,9 +3000,9 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
                           <span className="ws-section-title-dot"/>Upload → {uploadDir}
                         </div>
                         <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
-                          <UploadIcon/> .md, .pdf, .csv, .txt (max 8 MB)
+                          <UploadIcon/> .md, .pdf, .csv, .txt, .py (max 8 MB)
                         </div>
-                        <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt" style={{display:"none"}} onChange={handleUpload}/>
+                        <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt,.py" style={{display:"none"}} onChange={handleUpload}/>
                         {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
                       </div>
 

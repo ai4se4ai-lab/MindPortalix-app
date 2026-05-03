@@ -14,9 +14,12 @@ MindPortalix is an AI assistant platform that delivers GPT-4-class product behav
 - OpenRouter client supporting text, image, and audio generation
 - Supabase authentication, conversation persistence, and RLS policies
 - **Per-user workspace** — agent architecture editor, context injection toggles, personal file hierarchy, and workstation directories; each user's data is fully isolated via RLS
-- **Context Observatory** — real-time 3-panel monitoring page showing the live agent diagram, active context injection categories, and workspace directory hierarchy
+- **Architecture-driven routing** — the user's Mermaid diagram is parsed on every chat request; only agents present in the diagram can run; removing an agent from the diagram immediately removes it from the live pipeline
+- **Live context injection** — enabled skill, rule, agent-definition, hook, and MCP files are loaded from disk (with personal-copy override support) and prepended to every agent's system prompt on each request
+- **Resource-aware agents** — text files uploaded to `00_Resources/` are automatically included in every agent's workspace context so their content influences responses
+- **Context Observatory** — real-time 3-panel monitoring page with per-agent granular highlighting: only the specific skills, rules, and files the active agent uses are lit up; agent nodes are highlighted correctly even when custom node IDs are used (e.g. `plan[Planner]`)
 - **Context Monitoring dock** — resizable bottom panel in Chat showing per-agent context state during a live request
-- 59 automated tests covering agents, orchestration, OpenRouter client, hook safety, workspace isolation, and bug regressions
+- 142 automated tests covering agents, orchestration, architecture enforcement, context injection, resource loading, OpenRouter client, hook safety, workspace isolation, bug regressions, and concurrent multi-user correctness (no race conditions, no data bleed across three simultaneous users)
 
 ## Architecture
 
@@ -29,10 +32,11 @@ User
   -> Express Server
        -> Auth middleware (Supabase JWT)
        -> Intent classifier  ->  Modality detector
-       -> Workspace context  (CLAUDE.md + MEMORY.md injected into every agent)
-       -> Specialist agents  (parallel, streamed via SSE)
-       -> Executor agent     (synthesizes specialist output)
-       -> Quality review loop (up to 5 retry attempts)
+       -> Architecture filter  (user's Mermaid diagram gates which agents may run)
+       -> Workspace context  (CLAUDE.md + MEMORY.md + resource files + context injection content)
+       -> Specialist agents  (only those allowed by the architecture, streamed via SSE)
+       -> Executor agent     (synthesizes specialist output; skipped if absent from diagram)
+       -> Quality review loop (up to 5 retry attempts when Planner is in pipeline)
        -> Memory store       (in-memory or Supabase)
   -> OpenRouter API
        -> Free text models
@@ -68,10 +72,11 @@ User
 
 1. **Modality detection** — if the request clearly needs image or audio output, it routes directly to the relevant media agent; no text specialists are invoked.
 2. **Conversational shortcut** — simple greetings and acknowledgements route to Writer only.
-3. **Keyword scoring** — remaining requests are scored against every agent's keyword list; the top matches become the active specialist set.
-4. **Executor** — when two or more text specialists run (or when a Planner is involved), an Executor agent synthesizes their output into a single coherent reply.
-5. **Quality loop** — the Reviewer scores the draft; if the score is ≤ 5/10 and a Planner was involved, the pipeline re-runs (up to five attempts) before returning the best result.
-6. **Workspace context injection** — on every chat request the server loads the user's `CLAUDE.md` and `MEMORY.md` and prepends them to every specialist's system prompt.
+3. **Keyword scoring** — remaining requests are scored against every agent's keyword list; the top matches become the candidate specialist set.
+4. **Architecture filter** — the candidate set is intersected with the agents present in the user's Mermaid diagram. Agents absent from the diagram are excluded regardless of keyword score. If the diagram is blank or unrecognisable, all agents are permitted (default behavior).
+5. **Executor** — when two or more text specialists run (or when a Planner is involved), an Executor agent synthesizes their output into a single coherent reply. If Executor is absent from the diagram, each specialist's output is used directly.
+6. **Quality loop** — the Reviewer scores the draft; if the score is ≤ 5/10 and a Planner was involved, the pipeline re-runs (up to five attempts) before returning the best result.
+7. **Workspace context injection** — on every chat request the server builds a rich context block containing: the user's `CLAUDE.md`, `MEMORY.md`, the content of enabled context-injection items (skills, rules, agent definitions, hooks, MCPs — loaded from disk with personal-copy override), and the text content of files uploaded to `00_Resources/`. This block is prepended to every specialist's system prompt.
 
 ## Per-user Workspace
 
@@ -82,15 +87,26 @@ Every authenticated user gets an isolated workspace initialized on first login.
 | Item | Description |
 | --- | --- |
 | `CLAUDE.md` | Personal instructions injected into every agent system prompt |
-| `MEMORY.md` | Persistent notes surface by the Memory agent |
-| `00_Resources/` | Upload area for `.md`, `.pdf`, `.csv`, `.txt` files (max 8 MB each) |
+| `MEMORY.md` | Persistent notes surfaced by the Memory agent |
+| `00_Resources/` | Upload area for `.md`, `.pdf`, `.csv`, `.txt` files (max 8 MB each); text files are read by agents on every request |
 | Workstations | Named sub-directories, each auto-seeded with their own `CLAUDE.md`, `MEMORY.md`, `00_Resources/` |
-| Agent Architecture | Per-user Mermaid diagram defining the agent graph; editable with live preview |
-| Context Injection | Toggle which skill/agent/rule/MCP/hook/memory categories are active; click any item to read or personalise its definition |
+| Agent Architecture | Per-user Mermaid diagram **that drives the live pipeline** — saving a new diagram immediately changes which agents run in chat |
+| Context Injection | Toggle which skill/agent/rule/MCP/hook/memory categories are active; the content of enabled items is loaded from disk and injected into agents on every request |
+
+### How architecture enforcement works
+
+On every chat request, the server:
+
+1. Loads the user's `mermaidDiagram` from `user_agent_configs`.
+2. Parses agent node identifiers from the diagram (`parseArchitectureAgents`). Aliases `imagegen`/`audiogen` resolve to `image_generator`/`audio_generator`. Non-agent tokens (`flowchart`, `userinput`, `response`, etc.) are ignored.
+3. Filters the intent-classified route so only diagram-present agents run (`applyArchitectureFilter`).
+4. Gates the Executor the same way — if `executor` is absent from the diagram, synthesis is skipped even when multiple specialists ran.
+
+**Example:** remove `planner` from the diagram and save. The next chat request will skip Planner entirely, and the quality retry loop (which requires Planner) will not fire.
 
 ### How personalisation works
 
-Context injection items (e.g. `skills/agent-orchestration`) have server-side defaults stored on disk under `skills/`, `agents/`, `rules/`, `hooks/`, and `mcps/`. When a user edits an item, their version is saved at `_context/{category}/{item}` in `workspace_files` — the server file is never modified. Other users always see the original server default unless they create their own copy.
+Context injection items (e.g. `skills/agent-orchestration`) have server-side defaults on disk under `skills/`, `agents/`, `rules/`, `hooks/`, and `mcps/`. When a user edits an item, their version is saved at `_context/{category}/{item}` in `workspace_files` — the server file is never modified. On each chat request, the server checks for a personal copy first and falls back to the disk default if none exists (or if the personal copy is empty). Other users always see the original server default unless they create their own copy.
 
 ### Supabase schema
 
@@ -108,9 +124,19 @@ A dedicated monitoring page (`/observatory`) with three resizable panels:
 
 | Panel | Shows |
 | --- | --- |
-| Agent Architecture | Live Mermaid diagram; active agent highlighted during a request |
-| Context Injection | Category grid; categories light up as they are injected for the current agent |
-| Directory Hierarchy | Expandable workspace file tree; `CLAUDE.md` and `MEMORY.md` highlighted when loaded |
+| Agent Architecture | Live Mermaid diagram; the active agent node is highlighted during a request |
+| Context Injection | Category grid; **only the specific items the active agent uses** are lit — other enabled items stay dim |
+| Directory Hierarchy | Auto-expanded workspace file tree; `CLAUDE.md` highlighted while any agent runs (when it has content); `MEMORY.md` highlighted when the Memory agent is active or has content |
+
+### Per-agent context highlighting
+
+The Observatory uses a static `AGENT_CONTEXT_MAP` to determine which context items each agent directly uses. For example:
+
+- `planner` active → only `agent-orchestration` + `prompt-engineering` glow in Skills; `planner` glows in Agents
+- `coder` active → `model-selection` in Skills; `api-design`, `general`, `supabase` in Rules; `coder` in Agents
+- `memory` active → `memory` in Agents; `MEMORY.md` in Memory
+
+Items the active agent does not use remain unlit even if their category is enabled.
 
 ## Project Structure
 
@@ -120,17 +146,22 @@ agents/              Agent prompt and contract definitions (Markdown)
 commands/            Slash-command documentation
 docs/                Architecture, model, data, and test docs
 hooks/               Event hook entrypoints
+mcps/                MCP connector definitions
 rules/               Project conventions (api-design, styling, supabase, testing, general)
 skills/              Context packs injected on demand (agent-orchestration, model-selection, …)
 src/
   agents/registry.js       Agent definitions and keyword mappings
   hooks/safety.js          Hook safety logic
   openrouter/              OpenRouter client (text, image, audio)
-  orchestration/           Intent classifier, modality detector, orchestrator, responses
+  orchestration/
+    intent.js              Keyword-based intent classifier and modality detector
+    architecture.js        Mermaid parser, architecture filter, context injection loader
+    orchestrator.js        MindPortalixOrchestrator class
+    responses.js           runSpecialistAgent, reviewDraft, parseContent
   server/
     index.js               Express app entry point
     middleware/auth.js      Supabase JWT validation
-    routes/chat.js         SSE streaming chat (injects workspace context on every request)
+    routes/chat.js         SSE streaming chat — architecture-filtered, full context injection
     routes/workspace.js    Workspace CRUD — files, agent config, context injection, defaults
     routes/conversations.js Conversation and message persistence
     routes/monitor.js      SSE monitor feed for Context Observatory
@@ -143,6 +174,7 @@ tests/
     orchestration.test.js          End-to-end orchestration and memory isolation
     openrouter-client.test.js      OpenRouter request building
     openrouter-stream.test.js      SSE stream parsing
+    architecture.test.js           Architecture enforcement, context injection, resource loading (43 cases)
     workspace-isolation.test.js    26 workspace isolation cases + 18 bug regressions
 ```
 
@@ -167,7 +199,7 @@ tests/
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
 | `POST` | `/api/workspace/init` | JWT | Idempotent workspace bootstrap (first login) |
-| `GET` | `/api/workspace/context` | JWT | Full workspace context for chat injection |
+| `GET` | `/api/workspace/context` | JWT | Full workspace context for chat injection (includes resource content) |
 | `GET` | `/api/workspace/agent-config` | JWT | User's Mermaid diagram and agent overrides |
 | `PUT` | `/api/workspace/agent-config` | JWT | Save diagram / overrides |
 | `GET` | `/api/workspace/context-injection` | JWT | User's category toggle rules |
@@ -182,6 +214,8 @@ tests/
 
 The `/api/chat` endpoint uses **Server-Sent Events**. Events emitted during a request:
 `phase`, `route`, `pipeline`, `conversation`, `workspace_context`, `agent_start`, `agent_output_delta`, `agent_output_reset`, `agent_done`, `agent_detail`, `media`, `delta`, `delta_reset`, `thinking`, `review`, `done`, `error`.
+
+The `workspace_context` event now includes an `architectureAgents` field — the set of agent IDs parsed from the user's diagram — so the client can display which agents are permitted for the current request.
 
 ## Getting Started
 
@@ -229,17 +263,33 @@ Without Supabase configured, the server runs with an in-memory store — no auth
 ## Testing
 
 ```bash
-npm test                    # all 59 tests
+npm test                    # all 142 tests
 npm run test:agents         # intent routing and reviewer scoring
-npm run test:integration    # OpenRouter client, orchestration, workspace isolation
+npm run test:integration    # OpenRouter client, orchestration, architecture, workspace isolation, concurrent users
 npm run test:hooks          # hook safety checks
+npm run test:concurrent     # concurrent multi-user correctness (race conditions, data isolation)
 ```
 
-The workspace isolation suite (`tests/integration/workspace-isolation.test.js`) spins up two in-memory Express servers (Alice and Bob) backed by an in-memory Supabase mock and verifies complete data isolation across agent architecture, context injection, file content, directory hierarchy, context item personalisation, upload, and logout/re-login persistence. It also includes 18 regression cases covering the three bugs fixed after initial deployment:
+### Test suites
 
-- `_context/` virtual entries must never appear in `GET /files` or the directory hierarchy
-- Empty personal copies (created by an old premature auto-save) must fall through to the server-side default
-- Workstation entry (`POST /directories`) must be idempotent and always seed `CLAUDE.md`, `MEMORY.md`, `00_Resources/`
+| Suite | Cases | What it covers |
+| --- | --- | --- |
+| `agents/` | 5 | Intent routing, reviewer scoring, agent registry |
+| `hooks/` | 4 | Hook safety checks |
+| `integration/orchestration.test.js` | 2 | End-to-end orchestration, memory isolation |
+| `integration/openrouter-client.test.js` | 1 | OpenRouter request building |
+| `integration/openrouter-stream.test.js` | 1 | SSE stream parsing |
+| `integration/architecture.test.js` | 43 | Mermaid parsing, architecture filter, context injection content loading, resource inclusion, HTTP-level enforcement |
+| `integration/workspace-isolation.test.js` | 44 | Two-user isolation, personalisation, upload, logout/re-login persistence, 18 bug regressions |
+| `integration/concurrent-users.test.js` | 40 | Three simultaneous users: no race conditions, no data bleed, no inaccurate information — concurrent init, architecture updates, context injection, resource uploads, same-user write races, personal copy isolation, routing module purity, reads-during-writes |
+
+The architecture suite (`architecture.test.js`) verifies:
+
+- `parseArchitectureAgents` correctly extracts agent IDs from Mermaid diagrams, resolves aliases, and ignores non-agent tokens
+- `applyArchitectureFilter` removes agents absent from the diagram, falls back gracefully, and always preserves the Reviewer
+- `buildContextInjectionContent` loads disk files, prefers personal copies, skips disabled categories, and handles missing files without throwing
+- `GET /context` returns resource file content (text files up to 8 KB) and the `mermaidDiagram` field
+- A pipeline built from a planner-less diagram never routes to Planner
 
 ## Documentation
 

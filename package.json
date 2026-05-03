@@ -11,7 +11,8 @@
     "test": "node --test",
     "test:agents": "node --test tests/agents",
     "test:integration": "node --test tests/integration",
-    "test:hooks": "node --test tests/hooks"
+    "test:hooks": "node --test tests/hooks",
+    "test:concurrent": "node --test tests/integration/concurrent-users.test.js"
   },
   "engines": {
     "node": ">=18"

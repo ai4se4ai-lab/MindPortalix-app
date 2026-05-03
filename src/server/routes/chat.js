@@ -13,6 +13,7 @@ import { listAgents } from "../../agents/registry.js";
 import { getFreeModels } from "../../openrouter/models.js";
 import { broadcast } from "../../monitor/broadcaster.js";
 import { DEFAULT_CONTEXT_INJECTION } from "./workspace.js";
+import { parseArchitectureAgents, applyArchitectureFilter, buildContextInjectionContent } from "../../orchestration/architecture.js";
 
 /** Yield one event-loop tick so SSE writes flush before the next heavy await. */
 function yieldTick() {
@@ -79,9 +80,7 @@ router.post("/", requireAuth, async (req, res) => {
     send("phase", { stage: "connected", detail: "Connected — classifying intent…" });
     await yieldTick();
 
-    const route = classifyIntent(message);
-    send("route", { agents: routeAgentsForUi(route), primary: route.primary });
-    await yieldTick();
+    const rawRoute = classifyIntent(message);
 
     send("pipeline", { detail: "Searching memory…" });
     await yieldTick();
@@ -95,9 +94,10 @@ router.post("/", requireAuth, async (req, res) => {
     });
     await yieldTick();
 
-    // Load user workspace context (CLAUDE.md, MEMORY.md, context-injection config)
+    // Load user workspace context (CLAUDE.md, MEMORY.md, architecture, resources, context-injection)
     let workspaceContext = "";
     let contextInjection = DEFAULT_CONTEXT_INJECTION;
+    let allowedAgents = null; // null = no architecture restriction
     try {
       const wsRes = await fetch(
         `http://localhost:${process.env.PORT ?? 3000}/api/workspace/context`,
@@ -106,21 +106,44 @@ router.post("/", requireAuth, async (req, res) => {
       if (wsRes.ok) {
         const ws = await wsRes.json();
         contextInjection = ws.contextInjection ?? DEFAULT_CONTEXT_INJECTION;
+
+        // Parse architecture — determines which agents are allowed to run
+        allowedAgents = parseArchitectureAgents(ws.mermaidDiagram ?? "");
+
         const parts = [];
         if (ws.claudeMd?.trim()) parts.push(`## Workspace Instructions\n${ws.claudeMd.trim()}`);
         if (ws.memoryMd?.trim())  parts.push(`## User Memory\n${ws.memoryMd.trim()}`);
+
+        // Inject resource file content (text files from 00_Resources/)
+        const resourceParts = (ws.resources ?? [])
+          .filter(r => r.content?.trim())
+          .map(r => `### ${r.name}\n${r.content.trim()}`);
+        if (resourceParts.length > 0) {
+          parts.push(`## Workspace Resources\n${resourceParts.join("\n\n")}`);
+        }
+
+        // Inject enabled context items (skills, rules, agents defs, etc.) from disk
+        const injectedCtx = await buildContextInjectionContent(contextInjection);
+        if (injectedCtx) parts.push(injectedCtx);
+
         workspaceContext = parts.join("\n\n");
         send("workspace_context", {
           contextInjection,
           hasClaudeMd: Boolean(ws.claudeMd?.trim()),
           hasMemoryMd: Boolean(ws.memoryMd?.trim()),
           resourceCount: ws.resources?.length ?? 0,
+          architectureAgents: allowedAgents ? [...allowedAgents] : null,
         });
         await yieldTick();
       }
     } catch {
       // Non-fatal — proceed without workspace context
     }
+
+    // Apply user's architecture to filter which agents can run
+    const route = applyArchitectureFilter(rawRoute, allowedAgents);
+    send("route", { agents: routeAgentsForUi(route), primary: route.primary });
+    await yieldTick();
 
     const specialistIds = route.agents.filter(id => id !== "reviewer");
 
@@ -188,7 +211,7 @@ router.post("/", requireAuth, async (req, res) => {
     let executorResult = null;
     let executorLiveStreamed = false;
 
-    if (shouldRunExecutor(specialistResults, isMediaOnly) && !closed) {
+    if (shouldRunExecutor(specialistResults, isMediaOnly) && (!allowedAgents || allowedAgents.has("executor")) && !closed) {
       send("agent_start", { agent: "executor" });
       await yieldTick();
       const executorInput = buildExecutorUserMessage(message, specialistResults);
