@@ -833,7 +833,9 @@
   .obs-feed-entry { display: flex; flex-direction: column; gap: 4px; }
   .obs-feed-query {
     font-family: var(--mono); font-size: 10px; color: var(--accent); font-weight: 500;
+    cursor: pointer; user-select: none;
   }
+  .obs-feed-query:hover { opacity: 0.8; }
   .obs-feed-agents { display: flex; flex-wrap: wrap; gap: 4px; }
   .obs-feed-agent-tag {
     background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
@@ -2467,6 +2469,7 @@ function ContextFeedDock({ contextLog }) {
   const bodyRef = React.useRef(null);
   const [dockHeight, setDockHeight] = React.useState(220);
   const [dragging, setDragging] = React.useState(false);
+  const [collapsed, setCollapsed] = React.useState(new Set());
 
   // Auto-scroll to the newest entry whenever the log grows
   React.useEffect(() => {
@@ -2475,6 +2478,14 @@ function ContextFeedDock({ contextLog }) {
       if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
     });
   }, [contextLog.length]);
+
+  function toggleCollapse(idx) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      next.has(idx) ? next.delete(idx) : next.add(idx);
+      return next;
+    });
+  }
 
   function onResizeStart(e) {
     e.preventDefault();
@@ -2523,64 +2534,71 @@ function ContextFeedDock({ contextLog }) {
               );
             }
             const { query, agents, memories, claudeMd, memoryMd, resources, skillFiles } = entry;
+            const isCollapsed = collapsed.has(idx);
             return (
               <div className="obs-feed-entry" key={idx}>
-                {query && <div className="obs-feed-query">▶ {query}</div>}
-                {agents?.length > 0 && (
-                  <div className="obs-feed-agents">
-                    {agents.map(a => <span key={a} className="obs-feed-agent-tag">{a}</span>)}
+                {query && (
+                  <div className="obs-feed-query" onClick={() => toggleCollapse(idx)}>
+                    {isCollapsed ? "▶" : "▾"} {query}
                   </div>
                 )}
-                {(claudeMd || memoryMd) && (
-                  <div className="obs-feed-section">
-                    <div className="obs-feed-section-label instruction">Instructions &amp; Memory Files</div>
-                    {claudeMd && (
-                      <div className="obs-feed-item instruction">
-                        <div className="obs-feed-item-label">CLAUDE.md</div>
-                        <div className="obs-feed-item-text">{claudeMd.length > 200 ? claudeMd.slice(0, 200) + "…" : claudeMd}</div>
-                      </div>
-                    )}
-                    {memoryMd && (
-                      <div className="obs-feed-item memory">
-                        <div className="obs-feed-item-label">MEMORY.md</div>
-                        <div className="obs-feed-item-text">{memoryMd.length > 200 ? memoryMd.slice(0, 200) + "…" : memoryMd}</div>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {memories?.length > 0 && (
-                  <div className="obs-feed-section">
-                    <div className="obs-feed-section-label memory">Memory Snippets</div>
-                    {memories.map((m, i) => (
-                      <div key={i} className="obs-feed-item memory">
-                        <div className="obs-feed-item-label">{m.topic}</div>
-                        <div className="obs-feed-item-text">{m.summary}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {resources?.length > 0 && (
-                  <div className="obs-feed-section">
-                    <div className="obs-feed-section-label resource">Resources</div>
-                    {resources.map((r, i) => (
-                      <div key={i} className="obs-feed-item resource">
-                        <div className="obs-feed-item-label">{r.name}</div>
-                        <div className="obs-feed-item-text">{r.excerpt.length > 150 ? r.excerpt.slice(0, 150) + "…" : r.excerpt}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {skillFiles?.length > 0 && (
-                  <div className="obs-feed-section">
-                    <div className="obs-feed-section-label skill">Skill / Rule Files</div>
-                    {skillFiles.map((f, i) => (
-                      <div key={i} className="obs-feed-item skill">
-                        <div className="obs-feed-item-label">{f.label} / {f.item} ({f.source})</div>
-                        <div className="obs-feed-item-text">{f.excerpt.length > 150 ? f.excerpt.slice(0, 150) + "…" : f.excerpt}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {!isCollapsed && <>
+                  {agents?.length > 0 && (
+                    <div className="obs-feed-agents">
+                      {agents.map(a => <span key={a} className="obs-feed-agent-tag">{a}</span>)}
+                    </div>
+                  )}
+                  {(claudeMd || memoryMd) && (
+                    <div className="obs-feed-section">
+                      <div className="obs-feed-section-label instruction">Instructions &amp; Memory Files</div>
+                      {claudeMd && (
+                        <div className="obs-feed-item instruction">
+                          <div className="obs-feed-item-label">CLAUDE.md</div>
+                          <div className="obs-feed-item-text">{claudeMd.length > 200 ? claudeMd.slice(0, 200) + "…" : claudeMd}</div>
+                        </div>
+                      )}
+                      {memoryMd && (
+                        <div className="obs-feed-item memory">
+                          <div className="obs-feed-item-label">MEMORY.md</div>
+                          <div className="obs-feed-item-text">{memoryMd.length > 200 ? memoryMd.slice(0, 200) + "…" : memoryMd}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {memories?.length > 0 && (
+                    <div className="obs-feed-section">
+                      <div className="obs-feed-section-label memory">Memory Snippets</div>
+                      {memories.map((m, i) => (
+                        <div key={i} className="obs-feed-item memory">
+                          <div className="obs-feed-item-label">{m.topic}</div>
+                          <div className="obs-feed-item-text">{m.summary}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {resources?.length > 0 && (
+                    <div className="obs-feed-section">
+                      <div className="obs-feed-section-label resource">Resources</div>
+                      {resources.map((r, i) => (
+                        <div key={i} className="obs-feed-item resource">
+                          <div className="obs-feed-item-label">{r.name}</div>
+                          <div className="obs-feed-item-text">{r.excerpt.length > 150 ? r.excerpt.slice(0, 150) + "…" : r.excerpt}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {skillFiles?.length > 0 && (
+                    <div className="obs-feed-section">
+                      <div className="obs-feed-section-label skill">Skill / Rule Files</div>
+                      {skillFiles.map((f, i) => (
+                        <div key={i} className="obs-feed-item skill">
+                          <div className="obs-feed-item-label">{f.label} / {f.item} ({f.source})</div>
+                          <div className="obs-feed-item-text">{f.excerpt.length > 150 ? f.excerpt.slice(0, 150) + "…" : f.excerpt}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>}
               </div>
             );
           })

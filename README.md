@@ -18,26 +18,30 @@ MindPortalix is an AI assistant platform that delivers GPT-4-class product behav
 - **Live context injection** — enabled skill, rule, agent-definition, hook, and MCP files are loaded from disk (with personal-copy override support) and prepended to every agent's system prompt on each request
 - **Resource-aware agents** — text files uploaded to `00_Resources/` are automatically included in every agent's workspace context so their content influences responses
 - **Context Observatory** — real-time 3-panel monitoring page with per-agent granular highlighting: only the specific skills, rules, and files the active agent uses are lit up; agent nodes are highlighted correctly even when custom node IDs are used (e.g. `plan[Planner]`)
+- **Context Feed dock** — resizable bottom panel on the Observatory page showing the live context fed into agents turn-by-turn (MEMORY.md, CLAUDE.md, skill files, resources), with auto-scroll and turn separators
 - **Context Monitoring dock** — resizable bottom panel in Chat showing per-agent context state during a live request
-- 142 automated tests covering agents, orchestration, architecture enforcement, context injection, resource loading, OpenRouter client, hook safety, workspace isolation, bug regressions, and concurrent multi-user correctness (no race conditions, no data bleed across three simultaneous users)
+- **Two-tier service architecture** — User Level Services (facades that own cache invalidation and broadcast) sit above System Level Services (pure DB access + CO cache-aside layer); chat reads workspace context from CO, never from WS directly
+- **WS→CO sync** — every workspace write invalidates the CO cache immediately (direct call + event broadcast), guaranteeing chat always sees fresh context with no stale-read window
+- 213 automated tests covering agents, orchestration, architecture enforcement, context injection, resource loading, OpenRouter client, hook safety, workspace isolation, service-layer unit tests, CO sync integration, context-feed broadcasting, bug regressions, and concurrent multi-user correctness (no race conditions, no data bleed across three simultaneous users)
 
 ## Architecture
 
 ```text
 User
   -> PWA Frontend (React 18, SSE stream consumer)
-       -> Chat page          (streaming conversation, context monitoring dock)
-       -> Workspace page     (agent architecture, context injection, file manager)
-       -> Context Observatory (live 3-panel agent/context/directory monitor)
+       -> Chat page           (streaming conversation, context monitoring dock)
+       -> Workspace page      (agent architecture, context injection, file manager)
+       -> Context Observatory (live 3-panel monitor + resizable Context Feed dock)
   -> Express Server
        -> Auth middleware (Supabase JWT)
        -> Intent classifier  ->  Modality detector
        -> Architecture filter  (user's Mermaid diagram gates which agents may run)
-       -> Workspace context  (CLAUDE.md + MEMORY.md + resource files + context injection content)
-       -> Specialist agents  (only those allowed by the architecture, streamed via SSE)
-       -> Executor agent     (synthesizes specialist output; skipped if absent from diagram)
+       -> CO Service          (cache-aside read; always fresh after any WS write)
+       -> Workspace context   (CLAUDE.md + MEMORY.md + resource files + context injection)
+       -> Specialist agents   (only those allowed by the architecture, streamed via SSE)
+       -> Executor agent      (synthesizes specialist output; skipped if absent from diagram)
        -> Quality review loop (up to 5 retry attempts when Planner is in pipeline)
-       -> Memory store       (in-memory or Supabase)
+       -> Memory store        (in-memory or Supabase)
   -> OpenRouter API
        -> Free text models
        -> Image generation (FLUX)
@@ -50,6 +54,20 @@ User
        -> conversations + messages
        -> memory_entries
 ```
+
+### Two-tier service architecture
+
+The server-side code is split into two layers:
+
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| **User Level** | `src/services/user/` | Public API facades. Every write calls `invalidateCachedContext(userId)` then broadcasts `ws_write`. Chat reads context through the CO facade. |
+| **System Level** | `src/services/system/` | Pure DB access (WS System) and cache-aside context assembly (CO System + CO Context Store). No Express, no HTTP — testable in isolation. |
+| **Library** | `src/lib/` | Shared singletons: Supabase client factory with test-injection hooks, and the Default Library (constants used across layers). |
+
+**WS→CO sync rule (Principle 1):** every workspace mutation goes through `ws-service.js`, which synchronously calls `invalidateCachedContext(userId)` before broadcasting the `ws_write` event. The CO cache is therefore always invalidated regardless of whether the event listener was registered at startup.
+
+**Chat reads from CO (Principle 2):** `chat.js` calls `co-service.getContext(sbClient, userId)`, which checks the in-process CO cache first; on a miss it loads from Supabase via `ws-system.dbGetWorkspaceContext`, caches the result, and returns it. The old internal `fetch(http://localhost/api/workspace/context)` loopback has been removed.
 
 ## Agent System
 
@@ -120,13 +138,14 @@ user_context_injection -- rules (JSONB array of category toggles)
 
 ## Context Observatory
 
-A dedicated monitoring page (`/observatory`) with three resizable panels:
+A dedicated monitoring page (`/observatory`) with three resizable panels and a resizable bottom dock:
 
-| Panel | Shows |
+| Panel / Dock | Shows |
 | --- | --- |
 | Agent Architecture | Live Mermaid diagram; the active agent node is highlighted during a request |
 | Context Injection | Category grid; **only the specific items the active agent uses** are lit — other enabled items stay dim |
 | Directory Hierarchy | Auto-expanded workspace file tree; `CLAUDE.md` highlighted while any agent runs (when it has content); `MEMORY.md` highlighted when the Memory agent is active or has content |
+| **Context Feed dock** | Resizable bottom panel showing the exact context fed into agents each turn: query, active agents, CLAUDE.md, MEMORY.md, skill files, and resources. Auto-scrolls to the latest entry; each conversation turn ends with a separator line. |
 
 ### Per-agent context highlighting
 
@@ -150,32 +169,51 @@ mcps/                MCP connector definitions
 rules/               Project conventions (api-design, styling, supabase, testing, general)
 skills/              Context packs injected on demand (agent-orchestration, model-selection, …)
 src/
-  agents/registry.js       Agent definitions and keyword mappings
-  hooks/safety.js          Hook safety logic
-  openrouter/              OpenRouter client (text, image, audio)
+  agents/registry.js         Agent definitions and keyword mappings
+  hooks/safety.js            Hook safety logic
+  lib/
+    defaults.js              Default Library — DEFAULT_MERMAID, DEFAULT_CONTEXT_INJECTION, …
+    supabase-client.js       Shared Supabase factory with test-injection hooks
+  monitor/broadcaster.js     In-process EventEmitter bus (broadcast / subscribe)
+  openrouter/                OpenRouter client (text, image, audio)
   orchestration/
-    intent.js              Keyword-based intent classifier and modality detector
-    architecture.js        Mermaid parser, architecture filter, context injection loader
-    orchestrator.js        MindPortalixOrchestrator class
-    responses.js           runSpecialistAgent, reviewDraft, parseContent
+    intent.js                Keyword-based intent classifier and modality detector
+    architecture.js          Mermaid parser, architecture filter, context injection loader
+    orchestrator.js          MindPortalixOrchestrator class
+    responses.js             runSpecialistAgent, reviewDraft, parseContent
   server/
-    index.js               Express app entry point
-    middleware/auth.js      Supabase JWT validation
-    routes/chat.js         SSE streaming chat — architecture-filtered, full context injection
-    routes/workspace.js    Workspace CRUD — files, agent config, context injection, defaults
-    routes/conversations.js Conversation and message persistence
-    routes/monitor.js      SSE monitor feed for Context Observatory
-  storage/                 In-memory and Supabase memory stores
-supabase/migrations/       Database schema and RLS policies
+    index.js                 Express app entry point — wires up CO cache listener on startup
+    middleware/auth.js        Supabase JWT validation
+    routes/chat.js           SSE streaming chat — reads context from CO service
+    routes/workspace.js      Workspace CRUD — thin HTTP adapter delegating to ws-service / co-service
+    routes/conversations.js  Conversation and message persistence
+    routes/monitor.js        SSE monitor feed for Context Observatory
+  services/
+    user/
+      ws-service.js          WS User facade — every write invalidates CO cache + broadcasts ws_write
+      co-service.js          CO User facade — re-exports getWorkspaceContext for chat layer
+    system/
+      ws-system.js           WS System — pure Supabase DB access functions (no Express)
+      co-system.js           CO System — cache-aside context assembly (miss → DB → cache → return)
+      co-context-store.js    CO Cache — module-level Map, TTL, invalidate, ws_write listener
+  storage/                   In-memory and Supabase memory stores
+supabase/migrations/         Database schema and RLS policies
 tests/
-  agents/                  Intent routing and reviewer scoring unit tests
-  hooks/                   Hook safety unit tests
+  agents/                    Intent routing and reviewer scoring unit tests
+  hooks/                     Hook safety unit tests
+  services/
+    co-context-store.test.js  Cache get/set/invalidate, TTL, ws_write event, multi-user isolation
+    co-system.test.js         Cache-miss/hit flow, null client defaults, DB error fallback
+    ws-service.test.js        Every write invalidates cache + broadcasts; reads do neither
   integration/
     orchestration.test.js          End-to-end orchestration and memory isolation
     openrouter-client.test.js      OpenRouter request building
     openrouter-stream.test.js      SSE stream parsing
-    architecture.test.js           Architecture enforcement, context injection, resource loading (43 cases)
-    workspace-isolation.test.js    26 workspace isolation cases + 18 bug regressions
+    architecture.test.js           Architecture enforcement, context injection, resource loading
+    workspace-isolation.test.js    Workspace isolation + 18 bug regressions
+    co-sync.test.js                WS write → CO cache sync: freshness, multi-user isolation, sequential writes
+    context-feed.test.js           Context feed broadcaster: payload shapes, turn sequence, ordering
+    concurrent-users.test.js       Three simultaneous users: no race conditions, no data bleed
 ```
 
 ## API Endpoints
@@ -263,7 +301,7 @@ Without Supabase configured, the server runs with an in-memory store — no auth
 ## Testing
 
 ```bash
-npm test                    # all 142 tests
+npm test                    # all 213 tests
 npm run test:agents         # intent routing and reviewer scoring
 npm run test:integration    # OpenRouter client, orchestration, architecture, workspace isolation, concurrent users
 npm run test:hooks          # hook safety checks
@@ -276,12 +314,17 @@ npm run test:concurrent     # concurrent multi-user correctness (race conditions
 | --- | --- | --- |
 | `agents/` | 5 | Intent routing, reviewer scoring, agent registry |
 | `hooks/` | 4 | Hook safety checks |
+| `services/co-context-store.test.js` | 14 | Cache get/set/invalidate, TTL expiry, `ws_write` event invalidation, multi-user isolation, idempotent init |
+| `services/co-system.test.js` | 11 | Cache-miss/hit flow, null client returns defaults, DB error fallback, multi-user isolation |
+| `services/ws-service.test.js` | 21 | Every write invalidates CO cache + broadcasts `ws_write`; reads do neither |
 | `integration/orchestration.test.js` | 2 | End-to-end orchestration, memory isolation |
 | `integration/openrouter-client.test.js` | 1 | OpenRouter request building |
 | `integration/openrouter-stream.test.js` | 1 | SSE stream parsing |
 | `integration/architecture.test.js` | 43 | Mermaid parsing, architecture filter, context injection content loading, resource inclusion, HTTP-level enforcement |
 | `integration/workspace-isolation.test.js` | 44 | Two-user isolation, personalisation, upload, logout/re-login persistence, 18 bug regressions |
-| `integration/concurrent-users.test.js` | 40 | Three simultaneous users: no race conditions, no data bleed, no inaccurate information — concurrent init, architecture updates, context injection, resource uploads, same-user write races, personal copy isolation, routing module purity, reads-during-writes |
+| `integration/co-sync.test.js` | 7 | WS write → CO freshness, multi-user isolation, sequential write accumulation |
+| `integration/context-feed.test.js` | 18 | Context feed broadcaster payload shapes, turn separators, timestamp ordering |
+| `integration/concurrent-users.test.js` | 42 | Three simultaneous users: no race conditions, no data bleed — concurrent init, architecture updates, context injection, resource uploads, write races, personal copy isolation |
 
 The architecture suite (`architecture.test.js`) verifies:
 

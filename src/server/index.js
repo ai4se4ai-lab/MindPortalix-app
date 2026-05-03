@@ -15,6 +15,9 @@ import chatRouter from "./routes/chat.js";
 import conversationsRouter from "./routes/conversations.js";
 import monitorRouter from "./routes/monitor.js";
 import workspaceRouter from "./routes/workspace.js";
+// Wire up CO cache invalidation listener before any request arrives
+import { initCoContextStore } from "../services/system/co-context-store.js";
+initCoContextStore();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

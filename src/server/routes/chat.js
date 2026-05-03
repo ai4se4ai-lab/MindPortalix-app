@@ -12,8 +12,10 @@ import { SupabaseMemoryStore } from "../../storage/supabase-store.js";
 import { listAgents } from "../../agents/registry.js";
 import { getFreeModels, callWithFallback } from "../../openrouter/models.js";
 import { broadcast } from "../../monitor/broadcaster.js";
-import { DEFAULT_CONTEXT_INJECTION } from "./workspace.js";
+import { DEFAULT_CONTEXT_INJECTION } from "../../lib/defaults.js";
 import { parseArchitectureAgents, applyArchitectureFilter, buildContextInjectionContent } from "../../orchestration/architecture.js";
+import { getContext as getWorkspaceContext } from "../../services/user/co-service.js";
+import { getClient } from "../../lib/supabase-client.js";
 
 /** Yield one event-loop tick so SSE writes flush before the next heavy await. */
 function yieldTick() {
@@ -94,62 +96,58 @@ router.post("/", requireAuth, async (req, res) => {
     });
     await yieldTick();
 
-    // Load user workspace context (CLAUDE.md, MEMORY.md, architecture, resources, context-injection)
+    // Load user workspace context from CO (cache-aside; populates from WS DB on miss).
+    // Principle 2: chat never reads WS directly — always goes through CO.
     let workspaceContext = "";
     let contextInjection = DEFAULT_CONTEXT_INJECTION;
     let allowedAgents = null; // null = no architecture restriction
     let ctxDetails = [];   // skill/rule files loaded — forwarded to Context Observatory
     let wsMemo = { claudeMd: null, memoryMd: null, resources: [] };
     try {
-      const wsRes = await fetch(
-        `http://localhost:${process.env.PORT ?? 3000}/api/workspace/context`,
-        { headers: { Authorization: req.headers.authorization ?? "" } }
-      );
-      if (wsRes.ok) {
-        const ws = await wsRes.json();
-        contextInjection = ws.contextInjection ?? DEFAULT_CONTEXT_INJECTION;
+      const sbClient = getClient(req.token);
+      const ws = await getWorkspaceContext(sbClient, userId);
+      contextInjection = ws.contextInjection ?? DEFAULT_CONTEXT_INJECTION;
 
-        // Parse architecture — determines which agents are allowed to run
-        allowedAgents = parseArchitectureAgents(ws.mermaidDiagram ?? "");
+      // Parse architecture — determines which agents are allowed to run
+      allowedAgents = parseArchitectureAgents(ws.mermaidDiagram ?? "");
 
-        const parts = [];
-        if (ws.claudeMd?.trim()) parts.push(`## Workspace Instructions\n${ws.claudeMd.trim()}`);
-        if (ws.memoryMd?.trim())  parts.push(`## User Memory\n${ws.memoryMd.trim()}`);
+      const parts = [];
+      if (ws.claudeMd?.trim()) parts.push(`## Workspace Instructions\n${ws.claudeMd.trim()}`);
+      if (ws.memoryMd?.trim())  parts.push(`## User Memory\n${ws.memoryMd.trim()}`);
 
-        // Inject resource file content (text files from 00_Resources/)
-        const resourceParts = (ws.resources ?? [])
-          .filter(r => r.content?.trim())
-          .map(r => `### ${r.name}\n${r.content.trim()}`);
-        if (resourceParts.length > 0) {
-          parts.push(`## Workspace Resources\n${resourceParts.join("\n\n")}`);
-        }
-
-        // Inject enabled context items (skills, rules, agents defs, etc.) from disk
-        // Pass personal context-file overrides so _context/{ruleId}/{item} rows are respected
-        const { content: injectedCtx, details } = await buildContextInjectionContent(contextInjection, ws.contextFiles ?? []);
-        ctxDetails = details;
-        if (injectedCtx) parts.push(injectedCtx);
-
-        workspaceContext = parts.join("\n\n");
-
-        // Snapshot for context_feed broadcast (after route is known)
-        wsMemo = {
-          claudeMd:  ws.claudeMd?.trim()?.slice(0, 500) || null,
-          memoryMd:  ws.memoryMd?.trim()?.slice(0, 500) || null,
-          resources: (ws.resources ?? [])
-            .filter(r => r.content?.trim())
-            .map(r => ({ name: r.name, excerpt: r.content.slice(0, 200) })),
-        };
-
-        send("workspace_context", {
-          contextInjection,
-          hasClaudeMd: Boolean(ws.claudeMd?.trim()),
-          hasMemoryMd: Boolean(ws.memoryMd?.trim()),
-          resourceCount: ws.resources?.length ?? 0,
-          architectureAgents: allowedAgents ? [...allowedAgents] : null,
-        });
-        await yieldTick();
+      // Inject resource file content (text files from 00_Resources/)
+      const resourceParts = (ws.resources ?? [])
+        .filter(r => r.content?.trim())
+        .map(r => `### ${r.name}\n${r.content.trim()}`);
+      if (resourceParts.length > 0) {
+        parts.push(`## Workspace Resources\n${resourceParts.join("\n\n")}`);
       }
+
+      // Inject enabled context items (skills, rules, agents defs, etc.) from disk
+      // Pass personal context-file overrides so _context/{ruleId}/{item} rows are respected
+      const { content: injectedCtx, details } = await buildContextInjectionContent(contextInjection, ws.contextFiles ?? []);
+      ctxDetails = details;
+      if (injectedCtx) parts.push(injectedCtx);
+
+      workspaceContext = parts.join("\n\n");
+
+      // Snapshot for context_feed broadcast (after route is known)
+      wsMemo = {
+        claudeMd:  ws.claudeMd?.trim()?.slice(0, 500) || null,
+        memoryMd:  ws.memoryMd?.trim()?.slice(0, 500) || null,
+        resources: (ws.resources ?? [])
+          .filter(r => r.content?.trim())
+          .map(r => ({ name: r.name, excerpt: r.content.slice(0, 200) })),
+      };
+
+      send("workspace_context", {
+        contextInjection,
+        hasClaudeMd: Boolean(ws.claudeMd?.trim()),
+        hasMemoryMd: Boolean(ws.memoryMd?.trim()),
+        resourceCount: ws.resources?.length ?? 0,
+        architectureAgents: allowedAgents ? [...allowedAgents] : null,
+      });
+      await yieldTick();
     } catch {
       // Non-fatal — proceed without workspace context
     }
