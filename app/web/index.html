@@ -17,6 +17,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -107,7 +108,8 @@
 
   /* ── Chat layout ──────────────────────────────────────── */
   .chat-wrap {
-    height: 100vh; display: flex; flex-direction: column; align-items: center;
+    flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center;
+    overflow: hidden;
   }
   .chat-header {
     width: 100%; max-width: 700px;
@@ -669,6 +671,379 @@
     .auth-wrap { padding: 20px 16px; }
     .btn-ghost { padding: 5px 9px; font-size: 10px; }
   }
+
+  /* ── App shell with left nav ─────────────────────────── */
+  .app-shell {
+    display: flex; height: 100vh; width: 100vw; overflow: hidden;
+  }
+  .main-content {
+    flex: 1; min-width: 0; min-height: 0; overflow: hidden; display: flex; flex-direction: column;
+  }
+  /* flex: 1 + min-height: 0 lets percentage-height children resolve correctly */
+  .page-slot { flex: 1; min-height: 0; overflow: hidden; flex-direction: column; }
+
+  /* ── Left nav sidebar ────────────────────────────────── */
+  .left-nav {
+    width: 48px; flex-shrink: 0;
+    background: var(--bg2); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; align-items: center;
+    padding: 12px 0; gap: 4px; z-index: 10;
+  }
+  .nav-logo {
+    width: 28px; height: 28px; border-radius: 6px;
+    background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
+    display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
+  }
+  .nav-logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .nav-btn {
+    width: 36px; height: 36px; border-radius: 8px;
+    background: none; border: 1px solid transparent;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text3);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    position: relative;
+  }
+  .nav-btn:hover { background: var(--bg3); color: var(--text2); border-color: var(--border); }
+  .nav-btn.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(163,230,53,0.35); }
+  .nav-btn-tooltip {
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+    padding: 4px 8px; border-radius: 5px; white-space: nowrap;
+    pointer-events: none; opacity: 0; transition: opacity 0.15s; z-index: 100;
+  }
+  .nav-btn:hover .nav-btn-tooltip { opacity: 1; }
+
+  /* ── Observatory layout ─────────────────────────────── */
+  .obs-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+  .obs-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .obs-title {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--accent);
+  }
+  .obs-active-label {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .obs-active-agent { color: var(--accent); font-weight: 500; }
+  .obs-status {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    margin-left: auto; display: flex; align-items: center; gap: 6px;
+  }
+  .obs-status-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--text3); transition: background 0.3s; }
+  .obs-status-dot.live { background: var(--accent); animation: pulse 2s ease-in-out infinite; }
+
+  /* ── Three-panel resizable layout ──────────────────── */
+  .obs-panels { flex: 1; display: flex; min-height: 0; overflow: hidden; }
+  .obs-panel { display: flex; flex-direction: column; overflow: hidden; min-width: 100px; }
+  .obs-panel-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+  }
+  .obs-panel-header-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); }
+  .obs-panel-body { flex: 1; overflow: auto; padding: 12px; }
+  .obs-divider {
+    width: 4px; background: var(--border); cursor: col-resize; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .obs-divider:hover, .obs-divider.dragging { background: var(--accent); }
+
+  /* ── Mermaid diagram ────────────────────────────────── */
+  .mermaid-container { width: 100%; overflow: auto; }
+  .mermaid-container svg { max-width: 100%; height: auto; }
+
+  /* ── Context category boxes ─────────────────────────── */
+  .ctx-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ctx-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px; transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  .ctx-box.active {
+    border-color: rgba(163,230,53,0.6);
+    box-shadow: 0 0 0 1px rgba(163,230,53,0.15), 0 0 12px rgba(163,230,53,0.08);
+  }
+  .ctx-box-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+  }
+  .ctx-box-label-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); transition: background 0.25s; }
+  .ctx-box.active .ctx-box-label-dot { background: var(--accent); }
+  .ctx-box-items { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ctx-tag {
+    background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font-family: var(--mono); font-size: 9px; color: var(--text2);
+  }
+  .ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+
+  /* ── Directory tree ─────────────────────────────────── */
+  .dir-tree { font-family: var(--mono); font-size: 11px; }
+  .dir-node { padding: 1px 0; }
+  .dir-node-row {
+    display: flex; align-items: center; gap: 5px; padding: 3px 6px;
+    border-radius: 5px; cursor: default; transition: background 0.12s;
+  }
+  .dir-node-row:hover { background: var(--bg3); }
+  .dir-node-row.highlighted { background: var(--accent-dim); color: var(--accent); }
+  .dir-node-icon { color: var(--text3); font-size: 10px; width: 12px; text-align: center; flex-shrink: 0; }
+  .dir-node-name { color: var(--text2); }
+  .dir-node-name.special { color: var(--accent); }
+  .dir-children { padding-left: 16px; border-left: 1px solid var(--border); margin-left: 5px; }
+  .obs-loading {
+    display: flex; align-items: center; justify-content: center; height: 100%;
+    color: var(--text3); font-family: var(--mono); font-size: 12px; gap: 8px;
+  }
+
+  /* ── Context Feed Dock ────────────────────────────────── */
+  .obs-feed-dock {
+    flex-shrink: 0; display: flex; flex-direction: column;
+    background: var(--bg2); overflow: hidden;
+  }
+  .obs-feed-resize-handle {
+    height: 5px; flex-shrink: 0; cursor: row-resize;
+    background: var(--border); transition: background 0.15s;
+    user-select: none;
+  }
+  .obs-feed-resize-handle:hover, .obs-feed-resize-handle.dragging { background: var(--accent); }
+  .obs-feed-header {
+    padding: 8px 14px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+  }
+  .obs-feed-title {
+    font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3);
+  }
+  .obs-feed-count { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-left: auto; }
+  .obs-feed-body {
+    flex: 1; overflow-y: auto; padding: 8px 12px;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .obs-feed-empty {
+    display: flex; align-items: center; justify-content: center; height: 100%;
+    color: var(--text3); font-family: var(--mono); font-size: 11px; font-style: italic;
+  }
+  .obs-feed-separator { border: none; border-top: 1px dashed var(--border); margin: 4px 0; }
+  .obs-feed-turn-label {
+    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    text-align: center; padding: 1px 0;
+  }
+  .obs-feed-entry { display: flex; flex-direction: column; gap: 4px; }
+  .obs-feed-query {
+    font-family: var(--mono); font-size: 10px; color: var(--accent); font-weight: 500;
+  }
+  .obs-feed-agents { display: flex; flex-wrap: wrap; gap: 4px; }
+  .obs-feed-agent-tag {
+    background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
+    border-radius: 4px; padding: 1px 6px;
+    font-family: var(--mono); font-size: 9px; color: var(--accent);
+  }
+  .obs-feed-section { display: flex; flex-direction: column; gap: 2px; }
+  .obs-feed-section-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text3); padding: 2px 0;
+  }
+  .obs-feed-section-label.memory  { color: #6ee7b7; }
+  .obs-feed-section-label.instruction { color: #93c5fd; }
+  .obs-feed-section-label.resource { color: #fcd34d; }
+  .obs-feed-section-label.skill   { color: #c4b5fd; }
+  .obs-feed-item {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 5px; padding: 4px 8px;
+    font-family: var(--mono); font-size: 10px; color: var(--text2); line-height: 1.5;
+  }
+  .obs-feed-item.memory      { border-color: rgba(110,231,183,0.25); }
+  .obs-feed-item.instruction { border-color: rgba(147,197,253,0.25); }
+  .obs-feed-item.resource    { border-color: rgba(252,211,77,0.25); }
+  .obs-feed-item.skill       { border-color: rgba(196,181,253,0.25); }
+  .obs-feed-item-label { font-size: 9px; color: var(--text3); margin-bottom: 2px; }
+  .obs-feed-item-text { word-break: break-word; white-space: pre-wrap; }
+
+  /* ── Workspace panel ─────────────────────────────────── */
+  .ws-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
+  .ws-header {
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
+  }
+  .ws-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+  .ws-tabs { display: flex; gap: 2px; margin-left: auto; }
+  .ws-tab {
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    padding: 5px 12px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .ws-tab:hover { border-color: var(--border); color: var(--text2); }
+  .ws-tab.active { background: var(--accent-dim); border-color: rgba(163,230,53,0.35); color: var(--accent); }
+  .ws-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+  .ws-content { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
+
+  /* Workspace editor */
+  .ws-section { margin-bottom: 24px; }
+  .ws-section-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text3); margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
+  }
+  .ws-section-title-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text3); }
+  .ws-textarea {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 14px; color: var(--text);
+    font-family: var(--mono); font-size: 12px; line-height: 1.65;
+    resize: vertical; min-height: 160px; outline: none; transition: border-color 0.15s;
+  }
+  .ws-textarea:focus { border-color: var(--accent); }
+  .ws-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .ws-btn {
+    background: var(--accent); color: #0d0d0d; border: none; border-radius: 7px;
+    padding: 7px 16px; font-family: var(--font); font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: opacity 0.15s;
+  }
+  .ws-btn:hover { opacity: 0.85; }
+  .ws-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .ws-btn-ghost {
+    background: none; border: 1px solid var(--border); border-radius: 7px;
+    padding: 6px 14px; font-family: var(--mono); font-size: 11px;
+    color: var(--text2); cursor: pointer; letter-spacing: 0.04em;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .ws-btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+  .ws-btn-ghost.danger:hover { border-color: rgba(239,68,68,0.4); color: #f87171; }
+  .ws-save-status {
+    font-family: var(--mono); font-size: 10px; color: var(--accent); margin-left: 4px;
+    transition: opacity 0.3s;
+  }
+  .ws-save-status.hidden { opacity: 0; }
+
+  /* Directory file browser */
+  .ws-dir-toolbar {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+  }
+  .ws-dir-path {
+    font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: 0.06em; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ws-file-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+  .ws-file-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    border-radius: 7px; background: var(--bg2); border: 1px solid var(--border);
+    cursor: pointer; transition: border-color 0.12s;
+  }
+  .ws-file-item:hover { border-color: var(--border-strong); }
+  .ws-file-item.selected { border-color: rgba(163,230,53,0.5); background: var(--accent-dim); }
+  .ws-file-icon { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 14px; text-align: center; flex-shrink: 0; }
+  .ws-file-name { font-family: var(--mono); font-size: 12px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ws-file-name.special { color: var(--accent); }
+  .ws-file-meta { font-family: var(--mono); font-size: 9px; color: var(--text3); white-space: nowrap; }
+  .ws-file-del { background: none; border: none; color: var(--text3); cursor: pointer; font-size: 14px; padding: 0 2px; opacity: 0; transition: opacity 0.12s, color 0.12s; }
+  .ws-file-item:hover .ws-file-del { opacity: 1; }
+  .ws-file-del:hover { color: #f87171; }
+
+  .ws-upload-zone {
+    border: 1px dashed var(--border); border-radius: 8px; padding: 20px;
+    text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono);
+    cursor: pointer; transition: border-color 0.15s;
+  }
+  .ws-upload-zone:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Context injection editor */
+  .ws-ctx-rule {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s;
+  }
+  .ws-ctx-rule.active-rule { border-color: rgba(163,230,53,0.4); }
+  .ws-ctx-rule-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .ws-ctx-rule-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); flex: 1; }
+  .ws-toggle {
+    width: 32px; height: 17px; border-radius: 9px; border: none; cursor: pointer;
+    position: relative; flex-shrink: 0; transition: background 0.2s;
+  }
+  .ws-toggle.on { background: var(--accent); }
+  .ws-toggle.off { background: var(--border); }
+  .ws-toggle::after {
+    content: ''; position: absolute; top: 2px; width: 13px; height: 13px;
+    border-radius: 50%; background: #fff; transition: left 0.2s;
+  }
+  .ws-toggle.on::after { left: 17px; }
+  .ws-toggle.off::after { left: 2px; }
+  .ws-ctx-items { display: flex; flex-wrap: wrap; gap: 4px; }
+  .ws-ctx-tag {
+    font-family: var(--mono); font-size: 9px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--text3);
+  }
+  .ws-ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+
+  /* Clickable ctx item buttons */
+  .ws-ctx-tag-btn {
+    font-family: var(--mono); font-size: 9px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px 2px 7px;
+    color: var(--text3); cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
+    transition: border-color 0.12s, color 0.12s, background 0.12s; white-space: nowrap;
+  }
+  .ws-ctx-tag-btn:hover { border-color: rgba(163,230,53,0.5); color: var(--text); background: var(--bg2); }
+  .ws-ctx-tag-btn.lit { border-color: rgba(163,230,53,0.35); color: var(--accent); background: var(--accent-dim); }
+  .ws-ctx-tag-btn.selected { border-color: var(--accent); background: rgba(163,230,53,0.18); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .ws-ctx-tag-remove {
+    font-size: 11px; line-height: 1; opacity: 0; transition: opacity 0.12s, color 0.12s;
+    padding: 0 1px; margin-left: 1px;
+  }
+  .ws-ctx-tag-btn:hover .ws-ctx-tag-remove { opacity: 0.7; }
+  .ws-ctx-tag-btn:hover .ws-ctx-tag-remove:hover { opacity: 1; color: #f87171; }
+
+  /* Directory breadcrumb */
+  .ws-breadcrumb {
+    display: flex; align-items: center; gap: 3px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10px;
+    padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; margin-bottom: 10px; flex-shrink: 0;
+  }
+  .ws-bread-seg { cursor: pointer; color: var(--text2); transition: color 0.12s; padding: 1px 2px; }
+  .ws-bread-seg:hover { color: var(--accent); }
+  .ws-bread-seg.current { color: var(--accent); cursor: default; }
+  .ws-bread-sep { color: var(--border-strong); user-select: none; }
+  .ws-dir-item {
+    display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+    border-radius: 7px; background: var(--bg2); border: 1px solid var(--border);
+    cursor: pointer; transition: border-color 0.12s;
+  }
+  .ws-dir-item:hover { border-color: var(--accent); }
+  .ws-dir-arrow { font-size: 9px; color: var(--text3); margin-left: auto; flex-shrink: 0; }
+
+  /* Item editor slide-in panel */
+  .item-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; z-index: 300;
+    background: var(--bg2); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    box-shadow: -8px 0 40px rgba(0,0,0,0.5);
+  }
+  .item-panel-resize {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    cursor: ew-resize; z-index: 1; border-radius: 0;
+  }
+  .item-panel-resize:hover { background: rgba(163,230,53,0.2); }
+  .item-panel-header {
+    display: flex; align-items: center; gap: 8px; padding: 13px 16px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .item-panel-title {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .item-panel-close {
+    background: none; border: 1px solid var(--border); color: var(--text3); cursor: pointer;
+    font-size: 14px; padding: 2px 7px; line-height: 1.2; border-radius: 5px;
+    transition: border-color 0.15s, color 0.15s; flex-shrink: 0;
+  }
+  .item-panel-close:hover { border-color: var(--accent); color: var(--accent); }
+  .item-panel-body { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 14px 16px; gap: 10px; }
+  .item-panel-meta {
+    font-family: var(--mono); font-size: 9px; color: var(--text3); letter-spacing: 0.04em;
+    padding: 5px 8px; background: var(--bg3); border: 1px solid var(--border); border-radius: 5px; flex-shrink: 0;
+  }
+  .item-panel-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .item-panel-autosave { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-left: auto; }
+
 </style>
 </head>
 <body>
@@ -845,6 +1220,24 @@ function HistoryIcon() {
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
       <circle cx="8" cy="8" r="6.5"/>
       <path d="M8 4.5V8l2.5 2.5" strokeLinecap="round"/>
+    </svg>
+  );
+}
+function ChatBubbleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function TelescopeIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M2 7l4-2 10 5-4 2L2 7z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 10l4-2 4 2-4 2-4-2z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 5l2 5" strokeLinecap="round"/>
+      <circle cx="8" cy="13" r="3"/>
+      <path d="M8 16v3M6 19h4" strokeLinecap="round"/>
     </svg>
   );
 }
@@ -1211,10 +1604,11 @@ function ChatScreen({ session, onLogout }) {
 
   async function selectConversation(id) {
     setActiveConvId(id);
+    setMessages([]);  // Clear immediately so stale messages from a different conversation are never visible
     const res = await apiFetch(`/api/conversations/${id}/messages`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
-      setMessages(data.messages.map(m => ({
+      setMessages((data.messages ?? []).map(m => ({
         id: m.id, role: m.role, content: m.content,
         agents: m.agent ? [m.agent] : [],
         model: m.model
@@ -1503,6 +1897,12 @@ function ChatScreen({ session, onLogout }) {
               case "done":
                 // Prefer modelPlan from done event (complete list)
                 if (ev.modelPlan && ev.modelPlan.length) modelPlan = ev.modelPlan;
+                // Use conversationId from done event as fallback in case the conversation
+                // event was missed (e.g. stream interruption between event and client receipt)
+                if (ev.conversationId && !convId) {
+                  convId = ev.conversationId;
+                  setActiveConvId(convId);
+                }
                 collaborationSteps = upsertCollabStep(collaborationSteps, {
                   id: "final",
                   title: "Final response ready",
@@ -1513,6 +1913,9 @@ function ChatScreen({ session, onLogout }) {
                 setMessages(prev => prev.map(m => m.id === asstId
                   ? { ...m, agents, modelPlan, review: ev.review ?? m.review, collaborationSteps } : m));
                 if (convId) fetchConversations();
+                break;
+              case "memory_updated":
+                window.dispatchEvent(new CustomEvent("memory-updated"));
                 break;
               case "error":
                 content = `Error: ${ev.message ?? "Request failed"}`;
@@ -1644,10 +2047,1308 @@ function ChatScreen({ session, onLogout }) {
   );
 }
 
+// ── Context Observatory ───────────────────────────────────────────────
+
+function useMonitorSSE() {
+  const [activeAgent, setActiveAgent] = React.useState(null);
+  const [activeRoute, setActiveRoute] = React.useState([]);
+  const [connected, setConnected] = React.useState(false);
+  const [contextLog, setContextLog] = React.useState([]);
+
+  React.useEffect(() => {
+    const es = new EventSource("/api/monitor/live");
+    es.onopen = () => setConnected(true);
+    es.onerror = () => setConnected(false);
+
+    const onAgentStart = (e) => {
+      try { setActiveAgent(JSON.parse(e.data).agent ?? null); } catch {}
+    };
+    const onAgentDone = () => setActiveAgent(null);
+    const onRoute = (e) => {
+      try { setActiveRoute(JSON.parse(e.data).agents ?? []); } catch {}
+    };
+    const onDone = () => { setActiveAgent(null); setActiveRoute([]); };
+    const onContextFeed = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setContextLog(prev => [...prev, { type: "feed", ...data }]);
+      } catch {}
+    };
+    const onContextTurnEnd = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        setContextLog(prev => [...prev, { type: "separator", query: data.query }]);
+      } catch {}
+    };
+
+    es.addEventListener("agent_start", onAgentStart);
+    es.addEventListener("agent_done", onAgentDone);
+    es.addEventListener("route", onRoute);
+    es.addEventListener("done", onDone);
+    es.addEventListener("context_feed", onContextFeed);
+    es.addEventListener("context_turn_end", onContextTurnEnd);
+
+    return () => {
+      es.removeEventListener("agent_start", onAgentStart);
+      es.removeEventListener("agent_done", onAgentDone);
+      es.removeEventListener("route", onRoute);
+      es.removeEventListener("done", onDone);
+      es.removeEventListener("context_feed", onContextFeed);
+      es.removeEventListener("context_turn_end", onContextTurnEnd);
+      es.close();
+    };
+  }, []);
+
+  return { activeAgent, activeRoute, connected, contextLog };
+}
+
+// Maps agent IDs to likely node IDs in the default workspace Mermaid diagram
+const AGENT_NODE_ALIASES = { image_generator: "imagegen", audio_generator: "audiogen" };
+
+// Strip %% comment lines before passing to Mermaid — v10.9.x has a parse regression
+// that causes "Syntax error in text" for diagrams containing %% comment lines.
+function stripMermaidComments(str) {
+  return (str ?? "").split("\n").filter(l => !l.trimStart().startsWith("%%")).join("\n");
+}
+
+// Find the actual node ID whose label contains the agent name.
+// This lets highlighting work for custom diagrams like plan[Planner] or orch[Orchestrator].
+function findNodeIdByLabel(diagramStr, agentName) {
+  const target = agentName.replace(/_/g, "").toLowerCase();
+  const labelRe = /\b(\w+)\s*[\[({<]+([^\]})>]*)/g;
+  let m;
+  while ((m = labelRe.exec(diagramStr)) !== null) {
+    if (m[2].toLowerCase().includes(target)) return m[1];
+  }
+  return null;
+}
+
+function applyMermaidHighlight(diagramStr, activeAgent) {
+  if (!activeAgent || !diagramStr) return diagramStr ?? "";
+  const clean = stripMermaidComments(diagramStr);
+  const aliasId  = AGENT_NODE_ALIASES[activeAgent];
+  const directId = activeAgent.replace(/_/g, "");
+
+  // Prefer alias → direct agent ID → label search (for custom node IDs)
+  let nodeId = null;
+  if (aliasId && new RegExp(`\\b${aliasId}\\b`, "i").test(clean)) {
+    nodeId = aliasId;
+  } else if (new RegExp(`\\b${directId}\\b`, "i").test(clean)) {
+    nodeId = directId;
+  } else {
+    nodeId = findNodeIdByLabel(clean, activeAgent);
+  }
+
+  if (!nodeId) return clean;
+  return clean.trimEnd() + `\n  style ${nodeId} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`;
+}
+
+function useMermaid(containerRef, diagramStr) {
+  React.useEffect(() => {
+    if (!containerRef.current || !window.mermaid) return;
+    window.mermaid.initialize({
+      startOnLoad: false,
+      theme: "dark",
+      themeVariables: {
+        background: "#141414",
+        primaryColor: "#1c1c1c",
+        primaryTextColor: "#e8e8e3",
+        primaryBorderColor: "#5e5e5e",
+        lineColor: "#5e5e5e",
+        nodeBorder: "#5e5e5e",
+        clusterBkg: "#141414",
+        titleColor: "#e8e8e3",
+        edgeLabelBackground: "#0d0d0d",
+      }
+    });
+    const id = "mermaid-obs-" + Date.now();
+    // Strip comments before render — Mermaid 10.9.x parse regression with %% lines
+    window.mermaid.render(id, stripMermaidComments(diagramStr)).then(({ svg }) => {
+      if (containerRef.current) containerRef.current.innerHTML = svg;
+    }).catch(() => {});
+  }, [diagramStr]);
+}
+
+function AgentDiagramPanel({ activeAgent, workspaceData }) {
+  const containerRef = React.useRef(null);
+  const baseDiagram = workspaceData?.mermaidDiagram ?? "";
+  const diagram = applyMermaidHighlight(baseDiagram, activeAgent);
+  useMermaid(containerRef, diagram);
+  return (
+    <div className="obs-panel-body">
+      {!workspaceData
+        ? <div className="obs-loading"><span>Loading…</span></div>
+        : <div className="mermaid-container" ref={containerRef} />
+      }
+    </div>
+  );
+}
+
+// Which specific context items each agent directly uses.
+// Category keys match the contextInjection rule ids (skills, agents, rules, mcps, hooks, memory).
+const AGENT_CONTEXT_MAP = {
+  orchestrator:    { skills: ["agent-orchestration", "prompt-engineering"], agents: ["orchestrator"] },
+  researcher:      { agents: ["researcher"] },
+  reviewer:        { agents: ["reviewer"] },
+  memory:          { agents: ["memory"], memory: ["MEMORY.md"] },
+  coder:           { agents: ["coder"], skills: ["model-selection"], rules: ["api-design", "general", "supabase"] },
+  writer:          { agents: ["writer"], rules: ["general", "styling"] },
+  governor:        { agents: ["governor"], rules: ["general"] },
+  planner:         { agents: ["planner"], skills: ["agent-orchestration", "prompt-engineering"] },
+  executor:        { agents: ["executor"], skills: ["agent-orchestration"] },
+  formatter:       { agents: ["formatter"], rules: ["styling"] },
+  image_generator: { agents: ["image_generator"], skills: ["openrouter"] },
+  audio_generator: { agents: ["audio_generator"], skills: ["openrouter"] },
+};
+
+function ContextInjectionPanel({ activeAgent, workspaceData }) {
+  const rules = workspaceData?.contextInjection ?? [];
+  const isProcessing = Boolean(activeAgent);
+  const agentProfile = isProcessing ? (AGENT_CONTEXT_MAP[activeAgent] ?? {}) : {};
+
+  if (!workspaceData) {
+    return <div className="obs-panel-body"><div className="obs-loading"><span>Loading…</span></div></div>;
+  }
+
+  return (
+    <div className="obs-panel-body">
+      <div className="ctx-grid">
+        {rules.map(rule => {
+          const isEnabled = rule.active;
+          const profileItems = agentProfile[rule.id] ?? [];
+          const isBoxActive = isEnabled && isProcessing && profileItems.length > 0;
+          return (
+            <div key={rule.id} className={`ctx-box${isBoxActive ? " active" : ""}`}
+              style={!isEnabled ? { opacity: 0.4 } : undefined}>
+              <div className="ctx-box-label">
+                <span className="ctx-box-label-dot" />
+                {rule.label}
+                {!isEnabled && <span style={{ marginLeft: 4, fontFamily: "var(--mono)", fontSize: 8, color: "var(--text3)" }}>off</span>}
+              </div>
+              <div className="ctx-box-items">
+                {rule.items.map(item => {
+                  const isLit = isEnabled && isProcessing && profileItems.includes(item);
+                  return (
+                    <span key={item} className={`ctx-tag${isLit ? " lit" : ""}`}>{item}</span>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function buildWorkspaceTree(rawFiles) {
+  // Always strip _context/ entries — they are virtual personal copies, not real workspace files
+  const files = (rawFiles ?? []).filter(f => !f.path.startsWith("_context/"));
+  if (files.length === 0) return null;
+  const root = { name: "workspace", path: "", type: "dir", children: [] };
+  const dirMap = { "": root };
+
+  // Register directory nodes first
+  files.filter(f => f.is_directory).forEach(f => {
+    dirMap[f.path] = { name: f.name, path: f.path, type: "dir", children: [] };
+  });
+
+  // Place every item under its parent
+  files.forEach(f => {
+    const parentPath = f.path.includes("/")
+      ? f.path.split("/").slice(0, -1).join("/")
+      : "";
+    const parent = dirMap[parentPath] ?? root;
+    if (f.is_directory) {
+      if (!parent.children.find(c => c.path === f.path)) parent.children.push(dirMap[f.path]);
+    } else {
+      parent.children.push({ name: f.name, path: f.path, type: "file" });
+    }
+  });
+
+  return root;
+}
+
+function DirectoryPanel({ activeAgent, workspaceData }) {
+  const [expanded, setExpanded] = React.useState(new Set([""]));
+
+  const tree = React.useMemo(
+    () => buildWorkspaceTree(workspaceData?.files ?? []),
+    [workspaceData]
+  );
+
+  // Auto-expand all directories when the tree loads or refreshes so the
+  // observatory shows the full hierarchy without requiring manual clicks.
+  // User-initiated collapses are preserved between tree refreshes.
+  React.useEffect(() => {
+    if (!tree) return;
+    setExpanded(prev => {
+      const next = new Set(prev);
+      function addDirs(node) {
+        if (!node || node.type === "file") return;
+        next.add(node.path);
+        (node.children ?? []).forEach(addDirs);
+      }
+      addDirs(tree);
+      return next;
+    });
+  }, [tree]);
+
+  // Highlight only files the active agent is actually reading.
+  // CLAUDE.md and MEMORY.md are highlighted only while an agent is running and
+  // only when the user has content in them (empty files are not injected).
+  const highlightedPaths = React.useMemo(() => {
+    const paths = new Set();
+    if (activeAgent) {
+      if (workspaceData?.claudeMd?.trim()) paths.add("CLAUDE.md");
+      if (workspaceData?.memoryMd?.trim() || activeAgent === "memory") paths.add("MEMORY.md");
+    }
+    return paths;
+  }, [activeAgent, workspaceData]);
+
+  function toggleExpand(path) {
+    setExpanded(prev => {
+      const next = new Set(prev);
+      next.has(path) ? next.delete(path) : next.add(path);
+      return next;
+    });
+  }
+
+  function renderNode(node) {
+    const isSpecial = node.name === "CLAUDE.md" || node.name === "MEMORY.md";
+    const isHighlighted = highlightedPaths.has(node.path) || highlightedPaths.has(node.name);
+    const isExpanded = expanded.has(node.path);
+
+    if (node.type === "file") {
+      return (
+        <div key={node.path} className="dir-node">
+          <div className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}>
+            <span className="dir-node-icon">·</span>
+            <span className={`dir-node-name${isSpecial ? " special" : ""}`}>{node.name}</span>
+          </div>
+        </div>
+      );
+    }
+
+    const hasChildren = node.children && node.children.length > 0;
+    const isRoot = node.path === "";
+    return (
+      <div key={node.path} className="dir-node">
+        {!isRoot && (
+          <div
+            className={`dir-node-row${isHighlighted ? " highlighted" : ""}`}
+            onClick={() => toggleExpand(node.path)}
+            style={{ cursor: hasChildren ? "pointer" : "default" }}
+          >
+            <span className="dir-node-icon">{hasChildren ? (isExpanded ? "▾" : "▸") : "·"}</span>
+            <span className="dir-node-name">{node.name}/</span>
+          </div>
+        )}
+        {(isRoot || isExpanded) && hasChildren && (
+          <div className={isRoot ? undefined : "dir-children"}>
+            {node.children.map(child => renderNode(child))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!workspaceData) return <div className="obs-panel-body"><div className="obs-loading"><span>Loading…</span></div></div>;
+  if (!tree) return <div className="obs-panel-body"><div className="obs-loading"><span>No files yet</span></div></div>;
+  return (
+    <div className="obs-panel-body">
+      <div className="dir-tree">{renderNode(tree)}</div>
+    </div>
+  );
+}
+
+function useResizablePanels(defaultPercents) {
+  const [widths, setWidths] = React.useState(defaultPercents);
+  const dragging = React.useRef(null);
+  const containerRef = React.useRef(null);
+  const [draggingIdx, setDraggingIdx] = React.useState(null);
+
+  function onMouseDown(dividerIndex, e) {
+    e.preventDefault();
+    dragging.current = { dividerIndex, startX: e.clientX, startWidths: [...widths] };
+    setDraggingIdx(dividerIndex);
+
+    function onMouseMove(ev) {
+      if (!dragging.current || !containerRef.current) return;
+      const { dividerIndex: di, startX, startWidths } = dragging.current;
+      const containerW = containerRef.current.getBoundingClientRect().width;
+      const deltaPercent = ((ev.clientX - startX) / containerW) * 100;
+      const newWidths = [...startWidths];
+      const newLeft = Math.max(10, Math.min(80, newWidths[di] + deltaPercent));
+      const diff = newLeft - newWidths[di];
+      const newRight = Math.max(10, newWidths[di + 1] - diff);
+      newWidths[di] = newLeft;
+      newWidths[di + 1] = newRight;
+      setWidths(newWidths);
+    }
+
+    function onMouseUp() {
+      dragging.current = null;
+      setDraggingIdx(null);
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
+  return { widths, containerRef, onMouseDown, draggingIdx };
+}
+
+function ContextObservatory({ workspaceData }) {
+  const { activeAgent, connected, contextLog } = useMonitorSSE();
+  const { widths, containerRef, onMouseDown, draggingIdx } = useResizablePanels([30, 40, 30]);
+
+  return (
+    <div className="obs-wrap">
+      <div className="obs-header">
+        <span className="obs-title">Context Observatory</span>
+        {activeAgent && (
+          <div className="obs-active-label">
+            Active: <span className="obs-active-agent">{activeAgent}</span>
+          </div>
+        )}
+        <div className="obs-status">
+          <span className={`obs-status-dot${connected ? " live" : ""}`} />
+          {connected ? "live" : "connecting…"}
+        </div>
+      </div>
+
+      <div className="obs-panels" ref={containerRef}>
+        <div className="obs-panel" style={{ width: `${widths[0]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Agent Architecture
+            {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
+          </div>
+          <AgentDiagramPanel activeAgent={activeAgent} workspaceData={workspaceData} />
+        </div>
+
+        <div
+          className={`obs-divider${draggingIdx === 0 ? " dragging" : ""}`}
+          onMouseDown={e => onMouseDown(0, e)}
+        />
+
+        <div className="obs-panel" style={{ width: `${widths[1]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Context Injection
+            {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
+          </div>
+          <ContextInjectionPanel activeAgent={activeAgent} workspaceData={workspaceData} />
+        </div>
+
+        <div
+          className={`obs-divider${draggingIdx === 1 ? " dragging" : ""}`}
+          onMouseDown={e => onMouseDown(1, e)}
+        />
+
+        <div className="obs-panel" style={{ width: `${widths[2]}%` }}>
+          <div className="obs-panel-header">
+            <span className="obs-panel-header-dot" />
+            Directory Hierarchy
+          </div>
+          <DirectoryPanel activeAgent={activeAgent} workspaceData={workspaceData} />
+        </div>
+      </div>
+
+      <ContextFeedDock contextLog={contextLog} />
+    </div>
+  );
+}
+
+function ContextFeedDock({ contextLog }) {
+  const bodyRef = React.useRef(null);
+  const [dockHeight, setDockHeight] = React.useState(220);
+  const [dragging, setDragging] = React.useState(false);
+
+  // Auto-scroll to the newest entry whenever the log grows
+  React.useEffect(() => {
+    if (!bodyRef.current) return;
+    requestAnimationFrame(() => {
+      if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    });
+  }, [contextLog.length]);
+
+  function onResizeStart(e) {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = dockHeight;
+    setDragging(true);
+
+    function onMove(ev) {
+      const delta = startY - ev.clientY;
+      setDockHeight(Math.max(80, Math.min(600, startH + delta)));
+    }
+    function onUp() {
+      setDragging(false);
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  const turnCount = contextLog.filter(e => e.type === "separator").length;
+
+  return (
+    <div className="obs-feed-dock" style={{ height: dockHeight }}>
+      <div
+        className={`obs-feed-resize-handle${dragging ? " dragging" : ""}`}
+        onMouseDown={onResizeStart}
+      />
+      <div className="obs-feed-header">
+        <span className="obs-feed-title">Context Feed</span>
+        <span className="obs-feed-count">
+          {turnCount} turn{turnCount !== 1 ? "s" : ""}
+        </span>
+      </div>
+      <div className="obs-feed-body" ref={bodyRef}>
+        {contextLog.length === 0 ? (
+          <div className="obs-feed-empty">Waiting for chat activity…</div>
+        ) : (
+          contextLog.map((entry, idx) => {
+            if (entry.type === "separator") {
+              return (
+                <React.Fragment key={idx}>
+                  <hr className="obs-feed-separator" />
+                  <div className="obs-feed-turn-label">— end of turn —</div>
+                </React.Fragment>
+              );
+            }
+            const { query, agents, memories, claudeMd, memoryMd, resources, skillFiles } = entry;
+            return (
+              <div className="obs-feed-entry" key={idx}>
+                {query && <div className="obs-feed-query">▶ {query}</div>}
+                {agents?.length > 0 && (
+                  <div className="obs-feed-agents">
+                    {agents.map(a => <span key={a} className="obs-feed-agent-tag">{a}</span>)}
+                  </div>
+                )}
+                {(claudeMd || memoryMd) && (
+                  <div className="obs-feed-section">
+                    <div className="obs-feed-section-label instruction">Instructions &amp; Memory Files</div>
+                    {claudeMd && (
+                      <div className="obs-feed-item instruction">
+                        <div className="obs-feed-item-label">CLAUDE.md</div>
+                        <div className="obs-feed-item-text">{claudeMd.length > 200 ? claudeMd.slice(0, 200) + "…" : claudeMd}</div>
+                      </div>
+                    )}
+                    {memoryMd && (
+                      <div className="obs-feed-item memory">
+                        <div className="obs-feed-item-label">MEMORY.md</div>
+                        <div className="obs-feed-item-text">{memoryMd.length > 200 ? memoryMd.slice(0, 200) + "…" : memoryMd}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {memories?.length > 0 && (
+                  <div className="obs-feed-section">
+                    <div className="obs-feed-section-label memory">Memory Snippets</div>
+                    {memories.map((m, i) => (
+                      <div key={i} className="obs-feed-item memory">
+                        <div className="obs-feed-item-label">{m.topic}</div>
+                        <div className="obs-feed-item-text">{m.summary}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {resources?.length > 0 && (
+                  <div className="obs-feed-section">
+                    <div className="obs-feed-section-label resource">Resources</div>
+                    {resources.map((r, i) => (
+                      <div key={i} className="obs-feed-item resource">
+                        <div className="obs-feed-item-label">{r.name}</div>
+                        <div className="obs-feed-item-text">{r.excerpt.length > 150 ? r.excerpt.slice(0, 150) + "…" : r.excerpt}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {skillFiles?.length > 0 && (
+                  <div className="obs-feed-section">
+                    <div className="obs-feed-section-label skill">Skill / Rule Files</div>
+                    {skillFiles.map((f, i) => (
+                      <div key={i} className="obs-feed-item skill">
+                        <div className="obs-feed-item-label">{f.label} / {f.item} ({f.source})</div>
+                        <div className="obs-feed-item-text">{f.excerpt.length > 150 ? f.excerpt.slice(0, 150) + "…" : f.excerpt}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkspaceIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <rect x="2" y="3" width="20" height="14" rx="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8 21h8M12 17v4" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function FolderIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M1 3.5A1.5 1.5 0 012.5 2h2.586a1.5 1.5 0 011.06.44L7.5 3.5H13A1.5 1.5 0 0114.5 5v6A1.5 1.5 0 0113 12.5H3A1.5 1.5 0 011.5 11V3.5z" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function FileIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+      <path d="M3 2h7l3 3v9a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M10 2v3h3" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+function UploadIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 10V3M5 6l3-3 3 3" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M2 11v1a2 2 0 002 2h8a2 2 0 002-2v-1" strokeLinecap="round"/>
+    </svg>
+  );
+}
+
+// ── Workspace helpers ─────────────────────────────────────────────────
+
+async function apiFetchWorkspace(path, opts = {}) {
+  // Re-uses session token from global apiFetch helper defined in ChatScreen
+  const sb = await getSupabase();
+  const session = sb ? (await sb.auth.getSession()).data.session : null;
+  const headers = { "Content-Type": "application/json", ...(opts.headers ?? {}) };
+  if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
+  const res = await fetch(path, { ...opts, headers });
+  return res;
+}
+
+function formatBytesWs(n) {
+  if (!n) return "";
+  if (n < 1024) return `${n}B`;
+  return `${(n / 1024).toFixed(1)}KB`;
+}
+
+// ── WorkspacePanel ────────────────────────────────────────────────────
+
+function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
+  const [tab, setTab] = React.useState("directory");
+
+  // Architecture
+  const [mermaidCode, setMermaidCode] = React.useState("");
+  const [archLoading, setArchLoading] = React.useState(false);
+  const [savingArch, setSavingArch] = React.useState(false);
+  const [archSaved, setArchSaved] = React.useState(false);
+  const [archError, setArchError] = React.useState("");
+  const archLoaded = React.useRef(false);
+  const mermaidPreviewRef = React.useRef(null);
+
+  // Context injection
+  const [ctxRules, setCtxRules] = React.useState([]);
+  const [ctxLoading, setCtxLoading] = React.useState(false);
+  const [savingCtx, setSavingCtx] = React.useState(false);
+  const [ctxSaved, setCtxSaved] = React.useState(false);
+  const ctxLoaded = React.useRef(false);
+
+  // Item slide-in panel
+  const [itemPanel, setItemPanel] = React.useState(null); // { ruleId, ruleLabel, item }
+  const [itemContent, setItemContent] = React.useState("");
+  const [itemLoading, setItemLoading] = React.useState(false);
+  const [itemSaved, setItemSaved] = React.useState(false);
+  const [itemIsDefault, setItemIsDefault] = React.useState(false); // true = showing server default, not personalized yet
+  const [panelWidth, setPanelWidth] = React.useState(380);
+  const itemContentRef = React.useRef("");
+  const itemPanelRef = React.useRef(null);
+  const autoSaveTimer = React.useRef(null);
+  const isDirtyRef = React.useRef(false); // only save when user has actually typed
+
+  // Directory
+  const [files, setFiles] = React.useState([]);
+  const [currentPath, setCurrentPath] = React.useState(""); // "" = workspace root
+  const [selectedFile, setSelectedFile] = React.useState(null);
+  const [fileContent, setFileContent] = React.useState("");
+  const [fileLoading, setFileLoading] = React.useState(false);
+  const [fileSaving, setFileSaving] = React.useState(false);
+  const [fileSaved, setFileSaved] = React.useState(false);
+  const [dirLoading, setDirLoading] = React.useState(false);
+  const [newDirName, setNewDirName] = React.useState("");
+  const [creatingDir, setCreatingDir] = React.useState(false);
+  const [uploadError, setUploadError] = React.useState("");
+  const dirLoaded = React.useRef(false);
+  const fileInputRef = React.useRef(null);
+
+  // ── Seed from workspaceData — same source as Observatory ────────────
+  React.useEffect(() => {
+    if (!workspaceData) return;
+    if (!archLoaded.current && workspaceData.mermaidDiagram) {
+      setMermaidCode(workspaceData.mermaidDiagram);
+      archLoaded.current = true;
+    }
+    if (!ctxLoaded.current && workspaceData.contextInjection?.length) {
+      setCtxRules(workspaceData.contextInjection);
+      ctxLoaded.current = true;
+    }
+  }, [workspaceData]);
+
+  // ── Load per-tab data (only once; preserved on tab switch) ───────────
+  React.useEffect(() => {
+    if (tab === "architecture" && !archLoaded.current) loadArch();
+    if (tab === "context" && !ctxLoaded.current) loadCtx();
+  }, [tab]);
+
+  // Directory loads on mount, not on tab switch
+  React.useEffect(() => { if (!dirLoaded.current) loadFiles(); }, []);
+
+  // Reload workspace files when a chat turn updates MEMORY.md
+  React.useEffect(() => {
+    function onMemoryUpdated() { loadFiles(); }
+    window.addEventListener("memory-updated", onMemoryUpdated);
+    return () => window.removeEventListener("memory-updated", onMemoryUpdated);
+  }, []);
+
+  // ── Mermaid live preview ─────────────────────────────────────────────
+  React.useEffect(() => {
+    if (tab !== "architecture" || !mermaidCode || !mermaidPreviewRef.current || !window.mermaid) return;
+    const id = "mermaid-ws-" + Date.now();
+    window.mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: {
+      background: "#141414", primaryColor: "#1c1c1c", primaryTextColor: "#e8e8e3",
+      primaryBorderColor: "#5e5e5e", lineColor: "#5e5e5e",
+    }});
+    // Strip %% comments — Mermaid 10.9.x parse regression
+    window.mermaid.render(id, stripMermaidComments(mermaidCode)).then(({ svg }) => {
+      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML = svg;
+    }).catch(() => {
+      if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML =
+        '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Syntax error — check your diagram</span>';
+    });
+  }, [mermaidCode, tab]);
+
+  // ── Auto-save item panel every 5 s ───────────────────────────────────
+  React.useEffect(() => { itemContentRef.current = itemContent; }, [itemContent]);
+
+  React.useEffect(() => {
+    if (!itemPanel) { clearInterval(autoSaveTimer.current); autoSaveTimer.current = null; return; }
+    clearInterval(autoSaveTimer.current);
+    autoSaveTimer.current = setInterval(
+      () => { if (isDirtyRef.current) doSaveItem(itemPanelRef.current, itemContentRef.current); }, 5000
+    );
+    return () => clearInterval(autoSaveTimer.current);
+  }, [itemPanel?.ruleId, itemPanel?.item]);
+
+  // ── Architecture ─────────────────────────────────────────────────────
+  async function loadArch() {
+    setArchLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/agent-config");
+      if (r.ok) { const d = await r.json(); setMermaidCode(d.mermaid_diagram ?? ""); archLoaded.current = true; }
+    } catch {}
+    setArchLoading(false);
+  }
+
+  async function saveArch() {
+    setSavingArch(true); setArchError("");
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/agent-config", {
+        method: "PUT", body: JSON.stringify({ mermaid_diagram: mermaidCode })
+      });
+      if (r.ok) { setArchSaved(true); setTimeout(() => setArchSaved(false), 2000); onWorkspaceUpdate?.(); }
+      else { const d = await r.json().catch(() => ({})); setArchError(d.error ?? "Save failed"); }
+    } catch (err) { setArchError(err.message); }
+    setSavingArch(false);
+  }
+
+  // ── Context injection ────────────────────────────────────────────────
+  async function loadCtx() {
+    setCtxLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/context-injection");
+      if (r.ok) { const d = await r.json(); setCtxRules(d.rules ?? []); ctxLoaded.current = true; }
+    } catch {}
+    setCtxLoading(false);
+  }
+
+  async function persistCtxRules(rules) {
+    setSavingCtx(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/context-injection", {
+        method: "PUT", body: JSON.stringify({ rules })
+      });
+      if (r.ok) { setCtxSaved(true); setTimeout(() => setCtxSaved(false), 2000); onWorkspaceUpdate?.(); }
+    } catch {}
+    setSavingCtx(false);
+  }
+
+  function toggleRule(id) {
+    setCtxRules(prev => prev.map(r => r.id === id ? { ...r, active: !r.active } : r));
+  }
+
+  function removeCtxItem(ruleId, item) {
+    if (!confirm(`Remove "${item}" from this category?\n\nThis cannot be undone.`)) return;
+    setCtxRules(prev => {
+      const next = prev.map(r => r.id === ruleId ? { ...r, items: r.items.filter(i => i !== item) } : r);
+      persistCtxRules(next);
+      return next;
+    });
+    if (itemPanel?.ruleId === ruleId && itemPanel?.item === item) closeItemPanel(false);
+  }
+
+  // ── Item panel ───────────────────────────────────────────────────────
+  async function openItemPanel(rule, item) {
+    // Save current before switching (only if user actually typed something)
+    if (itemPanel && itemPanelRef.current && isDirtyRef.current) await doSaveItem(itemPanelRef.current, itemContentRef.current);
+    isDirtyRef.current = false;
+    const panel = { ruleId: rule.id, ruleLabel: rule.label, item };
+    itemPanelRef.current = panel;
+    setItemPanel(panel);
+    setItemContent(""); itemContentRef.current = "";
+    setItemIsDefault(false);
+    setItemLoading(true);
+    let content = null; // null = "no usable content yet"
+    let isDefault = false;
+    try {
+      // 1. Try the user's personal copy
+      const r = await apiFetchWorkspace(`/api/workspace/files/_context/${rule.id}/${item}`);
+      if (r.ok) {
+        const d = await r.json();
+        // Only use the personal copy if it has real content.
+        // An empty entry means the old auto-save bug wrote a blank before content loaded.
+        if ((d.content ?? "").trim().length > 0) content = d.content;
+      }
+      // 2. No personal copy (or it was blank) → load server-side default
+      if (content === null) {
+        const dr = await apiFetchWorkspace(`/api/workspace/defaults/${rule.id}/${item}`);
+        if (dr.ok) { const d = await dr.json(); content = d.content ?? ""; isDefault = true; }
+      }
+    } catch {}
+    content = content ?? "";
+    setItemContent(content); itemContentRef.current = content;
+    setItemIsDefault(isDefault);
+    setItemLoading(false);
+  }
+
+  async function doSaveItem(panel, content) {
+    if (!panel) return;
+    try {
+      await apiFetchWorkspace(`/api/workspace/files/_context/${panel.ruleId}/${panel.item}`, {
+        method: "PUT", body: JSON.stringify({ content, mime_type: "text/markdown" })
+      });
+      setItemSaved(true); setTimeout(() => setItemSaved(false), 1500);
+    } catch {}
+  }
+
+  async function closeItemPanel(save = true) {
+    if (save && itemPanel && isDirtyRef.current) await doSaveItem(itemPanel, itemContentRef.current);
+    clearInterval(autoSaveTimer.current); autoSaveTimer.current = null;
+    itemPanelRef.current = null; isDirtyRef.current = false;
+    setItemPanel(null); setItemContent(""); itemContentRef.current = "";
+    setItemIsDefault(false);
+  }
+
+  function startPanelResize(e) {
+    e.preventDefault();
+    const x0 = e.clientX, w0 = panelWidth;
+    const onMove = ev => setPanelWidth(Math.max(280, Math.min(720, w0 + x0 - ev.clientX)));
+    const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
+  }
+
+  // ── Directory ────────────────────────────────────────────────────────
+
+  // Items directly inside a given path (one level only)
+  function childrenAt(parentPath) {
+    const prefix = parentPath ? parentPath + "/" : "";
+    return files.filter(f => {
+      if (!f.path.startsWith(prefix)) return false;
+      const rest = f.path.slice(prefix.length);
+      if (rest.length === 0 || rest.includes("/")) return false;
+      // Inside 00_Resources: exclude ghost entries created by the workstation-init bug
+      if (parentPath.split("/").pop() === "00_Resources") {
+        if (f.name === "00_Resources" && f.is_directory) return false;
+        if (f.name === "CLAUDE.md" || f.name === "MEMORY.md") return false;
+      }
+      return true;
+    });
+  }
+
+  const PROTECTED_NAMES = ["CLAUDE.md", "MEMORY.md", "00_Resources"];
+
+  // Upload goes to the nearest 00_Resources for the current context
+  const uploadDir = currentPath === "00_Resources" || currentPath.endsWith("/00_Resources")
+    ? currentPath
+    : currentPath ? `${currentPath}/00_Resources` : "00_Resources";
+
+  async function loadFiles() {
+    setDirLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/files");
+      if (r.ok) {
+        const d = await r.json();
+        const allFiles = (d.files ?? []).filter(f => !f.path.startsWith("_context/"));
+        setFiles(allFiles);
+        dirLoaded.current = true;
+        // Remove stale entries inside 00_Resources created by the workstation-init bug
+        const stale = allFiles.filter(f =>
+          /(?:^|\/)00_Resources\/(00_Resources|CLAUDE\.md|MEMORY\.md)$/.test(f.path)
+        );
+        stale.forEach(f => apiFetchWorkspace(`/api/workspace/files/${f.path}`, { method: "DELETE" }).catch(() => {}));
+      }
+    } catch {}
+    setDirLoading(false);
+  }
+
+  async function navigateInto(dir) {
+    setSelectedFile(null); setFileContent("");
+    setCurrentPath(dir.path);
+    // Always seed root workstation defaults on entry — POST /directories is idempotent
+    // (uses ignoreDuplicates: true) so re-running it for existing workstations is safe.
+    // Avoids stale-state race where hasClaude check fires before loadFiles completes.
+    // 00_Resources is not a workstation — skip the init for it.
+    if (!dir.path.includes("/") && dir.name !== "00_Resources") {
+      try {
+        const r = await apiFetchWorkspace("/api/workspace/directories", {
+          method: "POST", body: JSON.stringify({ name: dir.name })
+        });
+        if (r.ok) await loadFiles();
+      } catch (e) { console.warn("[navigateInto] init:", e.message); }
+    }
+  }
+
+  async function initWorkstation(dirPath) {
+    const name = dirPath.split("/").pop();
+    setDirLoading(true);
+    try {
+      const r = await apiFetchWorkspace("/api/workspace/directories", {
+        method: "POST", body: JSON.stringify({ name })
+      });
+      if (r.ok) await loadFiles();
+    } catch (e) { console.warn("[initWorkstation] failed:", e.message); }
+    setDirLoading(false);
+  }
+
+  function navigateTo(path) {
+    setCurrentPath(path);
+    setSelectedFile(null); setFileContent("");
+  }
+
+  async function openFile(file) {
+    if (file.is_directory) { navigateInto(file); return; }
+    setSelectedFile(file); setFileLoading(true);
+    try {
+      const r = await apiFetchWorkspace(`/api/workspace/files/${file.path}`);
+      if (r.ok) { const d = await r.json(); setFileContent(d.content ?? ""); }
+    } catch {}
+    setFileLoading(false);
+  }
+
+  async function saveFile() {
+    if (!selectedFile) return;
+    setFileSaving(true);
+    try {
+      const r = await apiFetchWorkspace(`/api/workspace/files/${selectedFile.path}`, {
+        method: "PUT", body: JSON.stringify({ content: fileContent, mime_type: selectedFile.mime_type })
+      });
+      if (r.ok) { setFileSaved(true); setTimeout(() => setFileSaved(false), 2000); await loadFiles(); onWorkspaceUpdate?.(); }
+    } catch {}
+    setFileSaving(false);
+  }
+
+  async function deleteFile(file, e) {
+    e.stopPropagation();
+    const label = file.is_directory ? `directory "${file.name}" and all its contents` : `"${file.name}"`;
+    if (!confirm(`Delete ${label}?`)) return;
+    try {
+      await apiFetchWorkspace(`/api/workspace/files/${file.path}`, { method: "DELETE" });
+      if (selectedFile?.path === file.path || selectedFile?.path.startsWith(file.path + "/")) {
+        setSelectedFile(null); setFileContent("");
+      }
+      // Navigate up if we're inside the deleted directory
+      if (currentPath === file.path || currentPath.startsWith(file.path + "/")) {
+        const parentPath = file.path.includes("/") ? file.path.split("/").slice(0, -1).join("/") : "";
+        setCurrentPath(parentPath);
+      }
+      await loadFiles(); onWorkspaceUpdate?.();
+    } catch {}
+  }
+
+  async function createDir() {
+    if (!newDirName.trim()) return;
+    setCreatingDir(true);
+    try {
+      await apiFetchWorkspace("/api/workspace/directories", {
+        method: "POST", body: JSON.stringify({ name: newDirName.trim() })
+      });
+      setNewDirName(""); await loadFiles(); onWorkspaceUpdate?.();
+    } catch {}
+    setCreatingDir(false);
+  }
+
+  async function handleUpload(e) {
+    setUploadError("");
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["md","pdf","csv","txt","py"].includes(ext)) { setUploadError("Only .md, .pdf, .csv, .txt, .py files allowed"); return; }
+    if (file.size > 8*1024*1024) { setUploadError("File too large (max 8 MB)"); return; }
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const r = await apiFetchWorkspace("/api/workspace/upload", {
+          method: "POST",
+          body: JSON.stringify({ name: file.name, content: ev.target.result, mime_type: file.type || "application/octet-stream", directory: uploadDir })
+        });
+        if (!r.ok) { const d = await r.json(); setUploadError(d.error ?? "Upload failed"); return; }
+        await loadFiles(); onWorkspaceUpdate?.();
+      } catch (err) { setUploadError(err.message); }
+    };
+    if (["md","csv","txt"].includes(ext)) reader.readAsText(file); else reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  return (
+    <div className="ws-wrap">
+
+      {/* ── Item editor slide-in panel ──────────────────────────── */}
+      {itemPanel && (
+        <div className="item-panel" style={{ width: panelWidth }}>
+          <div className="item-panel-resize" onMouseDown={startPanelResize} />
+          <div className="item-panel-header">
+            <span className="item-panel-title">{itemPanel.ruleLabel} · {itemPanel.item}</span>
+            <button className="item-panel-close" onClick={() => closeItemPanel(true)}>×</button>
+          </div>
+          <div className="item-panel-body">
+            {itemLoading
+              ? <div style={{ color:"var(--text3)", fontFamily:"var(--mono)", fontSize:12 }}>Loading…</div>
+              : <>
+                  <div className="item-panel-meta">
+                    {itemIsDefault
+                      ? <><span style={{color:"var(--accent)"}}>server default</span> · edit to create your personal copy</>
+                      : <><span style={{color:"var(--text2)"}}>personal copy</span> · _context/{itemPanel.ruleId}/{itemPanel.item}</>
+                    }
+                    {" · injected when category is active"}
+                  </div>
+                  <textarea
+                    className="ws-textarea"
+                    style={{ flex:1, minHeight:0, resize:"none" }}
+                    value={itemContent}
+                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; isDirtyRef.current = true; if (itemIsDefault) setItemIsDefault(false); }}
+                    placeholder={`No server-side default found for "${itemPanel.item}".\n\nWrite your own definition — it will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
+                    spellCheck={false}
+                    autoFocus
+                  />
+                  <div className="item-panel-row">
+                    <button className="ws-btn" style={{ padding:"5px 12px", fontSize:11 }}
+                      onClick={() => doSaveItem(itemPanel, itemContentRef.current)}>Save</button>
+                    <span className={`ws-save-status${itemSaved ? "" : " hidden"}`}>Saved</span>
+                    <span className="item-panel-autosave">auto-saves every 5s</span>
+                  </div>
+                </>
+            }
+          </div>
+        </div>
+      )}
+
+      <div className="ws-header">
+        <span className="ws-title">My Workspace</span>
+        <div className="ws-tabs">
+          {[["directory","Directory"],["context","Context Injection"],["architecture","Agent Architecture"]].map(([id,label]) => (
+            <button key={id} className={`ws-tab${tab===id?" active":""}`} onClick={() => setTab(id)}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      <div className="ws-body">
+
+        {/* ── Architecture tab ── */}
+        {tab === "architecture" && (
+          <div className="ws-content">
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Mermaid Diagram</div>
+              {archLoading
+                ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                : <>
+                    <textarea
+                      className="ws-textarea"
+                      style={{ minHeight:220, fontFamily:"var(--mono)", fontSize:11 }}
+                      value={mermaidCode}
+                      onChange={e => setMermaidCode(e.target.value)}
+                      spellCheck={false}
+                      placeholder="flowchart TD&#10;  ..."
+                    />
+                    <div className="ws-actions">
+                      <button className="ws-btn" onClick={saveArch} disabled={savingArch}>{savingArch ? "Saving…" : "Save"}</button>
+                      <span className={`ws-save-status${archSaved ? "" : " hidden"}`}>Saved</span>
+                      {archError && <span style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginLeft:8}}>{archError}</span>}
+                    </div>
+                  </>
+              }
+            </div>
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Preview</div>
+              <div style={{background:"var(--bg2)",border:"1px solid var(--border)",borderRadius:8,padding:16,overflowX:"auto",minHeight:80}}>
+                <div ref={mermaidPreviewRef} className="mermaid-container" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Context Injection tab ── */}
+        {tab === "context" && (
+          <div className="ws-content">
+            <div className="ws-section">
+              <div className="ws-section-title"><span className="ws-section-title-dot"/>Context Injection Rules</div>
+              <p style={{fontSize:12,color:"var(--text3)",marginBottom:14,fontFamily:"var(--mono)"}}>
+                Toggle categories. Click an item to edit its injected content. Click <strong style={{color:"var(--text2)"}}>−</strong> to remove it.
+              </p>
+              {ctxLoading
+                ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                : ctxRules.map(rule => (
+                    <div key={rule.id} className={`ws-ctx-rule${rule.active ? " active-rule" : ""}`}>
+                      <div className="ws-ctx-rule-header">
+                        <span className="ws-ctx-rule-label">{rule.label}</span>
+                        <button className={`ws-toggle${rule.active?" on":" off"}`}
+                          onClick={() => toggleRule(rule.id)} title={rule.active ? "Disable" : "Enable"} />
+                      </div>
+                      <div className="ws-ctx-items">
+                        {rule.items.map(item => (
+                          <button
+                            key={item}
+                            className={`ws-ctx-tag-btn${rule.active?" lit":""}${itemPanel?.ruleId===rule.id&&itemPanel?.item===item?" selected":""}`}
+                            onClick={() => openItemPanel(rule, item)}
+                            title={`Edit "${item}" content`}
+                          >
+                            {item}
+                            <span className="ws-ctx-tag-remove" title={`Remove ${item}`}
+                              onClick={ev => { ev.stopPropagation(); removeCtxItem(rule.id, item); }}>−</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+              }
+              {!ctxLoading && (
+                <div className="ws-actions" style={{marginTop:16}}>
+                  <button className="ws-btn" onClick={() => persistCtxRules(ctxRules)} disabled={savingCtx}>{savingCtx ? "Saving…" : "Save"}</button>
+                  <span className={`ws-save-status${ctxSaved ? "" : " hidden"}`}>Saved</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Directory tab ── */}
+        {tab === "directory" && (() => {
+          const items = childrenAt(currentPath);
+          const childDirs  = items.filter(f => f.is_directory);
+          const childFiles = items.filter(f => !f.is_directory);
+          const pathParts  = currentPath ? currentPath.split("/") : [];
+          return (
+            <div className="ws-content" style={{display:"flex",gap:20,minHeight:0}}>
+              {/* ── Left: browser ── */}
+              <div style={{width:260,flexShrink:0,display:"flex",flexDirection:"column",gap:0}}>
+
+                {/* Breadcrumb */}
+                <div className="ws-breadcrumb">
+                  <span className={`ws-bread-seg${!currentPath?" current":""}`}
+                        onClick={() => navigateTo("")}>workspace</span>
+                  {pathParts.map((part, i) => {
+                    const np = pathParts.slice(0, i+1).join("/");
+                    const isLast = i === pathParts.length - 1;
+                    return (
+                      <React.Fragment key={np}>
+                        <span className="ws-bread-sep">/</span>
+                        <span className={`ws-bread-seg${isLast?" current":""}`}
+                              onClick={() => !isLast && navigateTo(np)}>{part}</span>
+                      </React.Fragment>
+                    );
+                  })}
+                </div>
+
+                {dirLoading
+                  ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:11}}>Loading…</div>
+                  : <>
+                      <div className="ws-file-list">
+                        {/* Directories */}
+                        {childDirs.map(dir => (
+                          <div key={dir.path} className="ws-dir-item" onClick={() => navigateInto(dir)}>
+                            <span className="ws-file-icon"><FolderIcon/></span>
+                            <span className={`ws-file-name${PROTECTED_NAMES.includes(dir.name)?" special":""}`}>{dir.name}/</span>
+                            <span className="ws-dir-arrow">▶</span>
+                            {!PROTECTED_NAMES.includes(dir.name) && (
+                              <button className="ws-file-del" onClick={e => deleteFile(dir, e)}>×</button>
+                            )}
+                          </div>
+                        ))}
+                        {/* Files */}
+                        {childFiles.map(f => (
+                          <div key={f.path} className={`ws-file-item${selectedFile?.path===f.path?" selected":""}`}
+                               onClick={() => openFile(f)}>
+                            <span className="ws-file-icon"><FileIcon/></span>
+                            <span className={`ws-file-name${PROTECTED_NAMES.includes(f.name)?" special":""}`}>{f.name}</span>
+                            <span className="ws-file-meta">{formatBytesWs(f.size_bytes)}</span>
+                            {!PROTECTED_NAMES.includes(f.name) && (
+                              <button className="ws-file-del" onClick={e => deleteFile(f, e)}>×</button>
+                            )}
+                          </div>
+                        ))}
+                        {items.length === 0 && (() => {
+                          const isUninitializedWorkstation = currentPath && !currentPath.includes("/") &&
+                            !files.some(f => f.path === `${currentPath}/CLAUDE.md`);
+                          return isUninitializedWorkstation
+                            ? <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>
+                                <div>Workstation not initialized.</div>
+                                <button className="ws-btn" style={{marginTop:8,padding:"4px 10px",fontSize:10}}
+                                  onClick={() => initWorkstation(currentPath)}>Initialize Workstation</button>
+                              </div>
+                            : <div style={{fontFamily:"var(--mono)",fontSize:11,color:"var(--text3)",padding:"8px 2px"}}>Empty</div>;
+                        })()}
+                      </div>
+
+                      {/* Upload — always visible, goes to correct 00_Resources */}
+                      <div style={{marginBottom:12}}>
+                        <div className="ws-section-title" style={{marginBottom:6}}>
+                          <span className="ws-section-title-dot"/>Upload → {uploadDir}
+                        </div>
+                        <div className="ws-upload-zone" onClick={() => fileInputRef.current?.click()}>
+                          <UploadIcon/> .md, .pdf, .csv, .txt, .py (max 8 MB)
+                        </div>
+                        <input ref={fileInputRef} type="file" accept=".md,.pdf,.csv,.txt,.py" style={{display:"none"}} onChange={handleUpload}/>
+                        {uploadError && <div style={{color:"#f87171",fontFamily:"var(--mono)",fontSize:10,marginTop:5}}>{uploadError}</div>}
+                      </div>
+
+                      {/* New Workstation — only at root */}
+                      {currentPath === "" && (
+                        <div>
+                          <div className="ws-section-title" style={{marginBottom:6}}><span className="ws-section-title-dot"/>New Workstation</div>
+                          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                            <input
+                              style={{flex:1,background:"var(--bg3)",border:"1px solid var(--border)",borderRadius:6,padding:"5px 9px",color:"var(--text)",fontFamily:"var(--mono)",fontSize:11,outline:"none"}}
+                              placeholder="Workstation name…"
+                              value={newDirName}
+                              onChange={e => setNewDirName(e.target.value)}
+                              onKeyDown={e => e.key==="Enter" && createDir()}
+                            />
+                            <button className="ws-btn" style={{padding:"5px 10px",fontSize:11}} onClick={createDir} disabled={creatingDir || !newDirName.trim()}>
+                              {creatingDir ? "…" : "Create"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                }
+              </div>
+
+              <div style={{width:1,background:"var(--border)",flexShrink:0,alignSelf:"stretch"}}/>
+
+              {/* ── Right: file editor ── */}
+              <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
+                {!selectedFile
+                  ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Select a file to edit</div>
+                  : <>
+                      <div className="ws-section-title" style={{marginBottom:8}}>
+                        <span className="ws-section-title-dot"/>{selectedFile.path}
+                      </div>
+                      {fileLoading
+                        ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                        : <>
+                            <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
+                              value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
+                            <div className="ws-actions" style={{marginTop:10}}>
+                              <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
+                              <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
+                              {!PROTECTED_NAMES.includes(selectedFile.name) && (
+                                <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
+                                  onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+                              )}
+                            </div>
+                          </>
+                      }
+                    </>
+                }
+              </div>
+            </div>
+          );
+        })()}
+
+      </div>
+    </div>
+  );
+}
+
+function LeftNav({ page, onNavigate }) {
+  return (
+    <nav className="left-nav" aria-label="Main navigation">
+      <div className="nav-logo"><span className="nav-logo-dot" /></div>
+      <button
+        className={`nav-btn${page === "chat" ? " active" : ""}`}
+        onClick={() => onNavigate("chat")}
+        aria-label="Chat"
+      >
+        <ChatBubbleIcon />
+        <span className="nav-btn-tooltip">Chat</span>
+      </button>
+      <button
+        className={`nav-btn${page === "workspace" ? " active" : ""}`}
+        onClick={() => onNavigate("workspace")}
+        aria-label="My Workspace"
+      >
+        <WorkspaceIcon />
+        <span className="nav-btn-tooltip">Workspace</span>
+      </button>
+      <button
+        className={`nav-btn${page === "observatory" ? " active" : ""}`}
+        onClick={() => onNavigate("observatory")}
+        aria-label="Context Observatory"
+      >
+        <TelescopeIcon />
+        <span className="nav-btn-tooltip">Observatory</span>
+      </button>
+    </nav>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────
 function App() {
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
+  const [page, setPage] = useState("chat");
+  const [workspaceData, setWorkspaceData] = useState(null);
+  const sessionRef = React.useRef(null);
+  sessionRef.current = session;
+
+  async function loadWorkspaceData(sess) {
+    const token = sess?.access_token;
+    if (!token) return;
+    try {
+      const r = await fetch("/api/workspace/context", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (r.ok) setWorkspaceData(await r.json());
+    } catch {}
+  }
+
+  async function initWorkspace(sess) {
+    if (!sess?.access_token) return;
+    try {
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${sess.access_token}` };
+      await fetch("/api/workspace/init", { method: "POST", headers });
+      await loadWorkspaceData(sess);
+    } catch {}
+  }
+
+  function handleWorkspaceUpdate() {
+    loadWorkspaceData(sessionRef.current);
+  }
 
   useEffect(() => {
     getSupabase().then(sb => {
@@ -1655,9 +3356,11 @@ function App() {
       sb.auth.getSession().then(({ data: { session } }) => {
         setSession(session);
         setAuthChecked(true);
+        if (session) initWorkspace(session);
       });
       const { data: { subscription } } = sb.auth.onAuthStateChange((_ev, session) => {
         setSession(session);
+        if (session) initWorkspace(session);
       });
       return () => subscription.unsubscribe();
     });
@@ -1675,9 +3378,24 @@ function App() {
     );
   }
 
-  return session
-    ? <ChatScreen session={session} onLogout={() => setSession(null)} />
-    : <AuthScreen onAuth={setSession} />;
+  if (!session) return <AuthScreen onAuth={setSession} />;
+
+  return (
+    <div className="app-shell">
+      <LeftNav page={page} onNavigate={setPage} />
+      <div className="main-content">
+        <div className="page-slot" style={{ display: page === "chat" ? "flex" : "none" }}>
+          <ChatScreen session={session} onLogout={() => setSession(null)} />
+        </div>
+        <div className="page-slot" style={{ display: page === "workspace" ? "flex" : "none" }}>
+          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} workspaceData={workspaceData} />
+        </div>
+        <div className="page-slot" style={{ display: page === "observatory" ? "flex" : "none" }}>
+          <ContextObservatory workspaceData={workspaceData} />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);

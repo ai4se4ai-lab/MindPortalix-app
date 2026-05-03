@@ -30,7 +30,7 @@ router.post("/", async (req, res) => {
 router.get("/:id/messages", async (req, res) => {
   const store = new SupabaseMemoryStore(req.token);
   try {
-    const messages = await store.getMessages(req.params.id);
+    const messages = await store.getMessages(req.params.id, req.user.id);
     res.json({ messages });
   } catch (err) {
     res.status(500).json({ error: err.message });

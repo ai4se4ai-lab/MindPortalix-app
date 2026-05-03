@@ -18,6 +18,9 @@ function getAdminClient() {
 }
 
 export async function requireAuth(req, res, next) {
+  // Pass-through if upstream middleware (or test harness) already authenticated the request
+  if (req.user) { req.token ??= req.headers.authorization?.slice(7) ?? ""; return next(); }
+
   const authHeader = req.headers.authorization ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
 

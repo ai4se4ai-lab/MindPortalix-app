@@ -130,16 +130,30 @@ export class SupabaseMemoryStore {
       if (isSchemaError(error)) { warnSchemaMissing(); return null; }
       throw new Error(`Message save failed: ${error.message}`);
     }
+
+    // Bump updated_at on the parent conversation so listConversations sorts by activity
+    await this.client
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId)
+      .eq("user_id", userId);
+
     return data;
   }
 
-  async getMessages(conversationId) {
-    const { data, error } = await this.client
+  async getMessages(conversationId, userId) {
+    // Build all WHERE filters before calling .order() — Supabase JS v2 returns a
+    // PostgrestTransformBuilder from .order() which does not expose .eq(), so all
+    // filter methods must be chained before the transform step.
+    let builder = this.client
       .from("messages")
       .select("*")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true });
+      .eq("conversation_id", conversationId);
 
+    // Explicit user_id guard when using service-role key (RLS is bypassed in that mode)
+    if (userId) builder = builder.eq("user_id", userId);
+
+    const { data, error } = await builder.order("created_at", { ascending: true });
     if (error) {
       if (isSchemaError(error)) { warnSchemaMissing(); return []; }
       throw new Error(`Messages fetch failed: ${error.message}`);
@@ -166,7 +180,7 @@ export class SupabaseMemoryStore {
       .from("conversations")
       .select("*")
       .eq("user_id", userId)
-      .order("created_at", { ascending: false });
+      .order("updated_at", { ascending: false });
 
     if (error) {
       if (isSchemaError(error)) { warnSchemaMissing(); return []; }
@@ -184,6 +198,37 @@ export class SupabaseMemoryStore {
     if (error && !isSchemaError(error)) {
       throw new Error(`Conversation delete failed: ${error.message}`);
     }
+  }
+
+  async readWorkspaceFile(userId, filePath) {
+    const { data, error } = await this.client
+      .from("workspace_files")
+      .select("content")
+      .eq("user_id", userId)
+      .eq("path", filePath)
+      .single();
+    if (error) return null;
+    return data?.content ?? null;
+  }
+
+  async writeWorkspaceFile(userId, filePath, content) {
+    const name = filePath.split("/").pop();
+    const { error } = await this.client
+      .from("workspace_files")
+      .upsert(
+        {
+          user_id: userId,
+          path: filePath,
+          name,
+          content,
+          mime_type: "text/markdown",
+          size_bytes: content.length,
+          is_directory: false,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,path" }
+      );
+    if (error) throw new Error(`Workspace file write failed: ${error.message}`);
   }
 }
 

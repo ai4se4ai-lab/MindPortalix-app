@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import chatRouter from "./routes/chat.js";
 import conversationsRouter from "./routes/conversations.js";
+import monitorRouter from "./routes/monitor.js";
+import workspaceRouter from "./routes/workspace.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,14 +25,16 @@ const PORT = process.env.PORT ?? 3000;
 
 app.use(cors({
   origin: process.env.APP_URL ?? "*",
-  methods: ["GET", "POST", "DELETE", "OPTIONS"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true
 }));
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/chat", chatRouter);
 app.use("/api/conversations", conversationsRouter);
+app.use("/api/monitor", monitorRouter);
+app.use("/api/workspace", workspaceRouter);
 
 app.get("/api/health", (_req, res) => {
   res.json({

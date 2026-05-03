@@ -6,7 +6,10 @@ const SYSTEM_PROMPTS = {
   researcher: `You are a research specialist for MindPortalix. Respond in clean Markdown. Ground claims with factual information and cite sources when available. Do not output internal tokens, step markers, or chain-of-thought brackets.`,
   coder: `You are a coding specialist for MindPortalix. Respond in clean Markdown with properly fenced code blocks. Write idiomatic, working code with brief explanations. Do not output internal tokens or step markers.`,
   writer: `You are a writing specialist for MindPortalix. Draft clear, well-structured content in clean Markdown. Adapt tone and format to the audience. Do not output internal tokens or step markers.`,
-  memory: `You are a memory specialist for MindPortalix. Surface relevant past context concisely in clean Markdown. Do not output internal tokens or step markers.`,
+  memory: `You are a memory specialist for MindPortalix. You have two modes:
+1. STORE: When the user asks you to remember, note, or record something, confirm exactly what you are storing and present it as a clear, concise bullet point the user can verify.
+2. RECALL: When the user asks about past context, preferences, or what you know about them, surface the most relevant information from the provided workspace memory.
+Always respond in clean Markdown. Do not output internal tokens or step markers.`,
   governor: `You are a safety specialist for MindPortalix. Briefly report on safety, PII, and policy concerns in clean Markdown. Do not output internal tokens or step markers.`,
   planner: `You are a planning specialist for MindPortalix. Output ONLY a structured work plan in Markdown (numbered steps, milestones, dependencies). Do NOT write the full user-facing answer, essay, or conversational reply here—that is produced by a separate executor agent. Planning only: no greetings-as-final-answer, no long prose aimed at the user. Do not output internal tokens, bracket markers like [[A0]], or step notation like [:].`,
   executor: `You are the plan executor for MindPortalix. You receive the user's request and specialist outputs (plan, research, code notes, memory, etc.). Write the ONE message the user will read: direct, helpful, and complete. Execute the plan—deliver the substance. Do not duplicate the plan as a second full outline unless the user explicitly asked only for a plan. Use clean Markdown. Do not output internal tokens or step markers.`,
@@ -110,7 +113,7 @@ export function buildExecutorUserMessage(userMessage, specialistResults) {
  *   mediaUrl:  URL or data-URI for the generated media (when present)
  *   content:   text description / caption for the media, or the full text response
  */
-export async function runSpecialistAgent({ agentId, input, memories = [], onStreamChunk, onStreamReset } = {}) {
+export async function runSpecialistAgent({ agentId, input, memories = [], workspaceContext = "", onStreamChunk, onStreamReset } = {}) {
   const agent = getAgent(agentId);
 
   // ── Image generation agent ─────────────────────────────────────────────
@@ -131,8 +134,12 @@ export async function runSpecialistAgent({ agentId, input, memories = [], onStre
     ? `\n\nRelevant context from memory:\n${memories.map(m => `- ${m.topic}: ${m.summary}`).join("\n")}`
     : "";
 
+  const wsContext = workspaceContext
+    ? `\n\nUser workspace context:\n${workspaceContext}`
+    : "";
+
   const messages = [
-    { role: "system", content: systemPrompt + memoryContext },
+    { role: "system", content: systemPrompt + memoryContext + wsContext },
     { role: "user", content: input },
   ];
 
