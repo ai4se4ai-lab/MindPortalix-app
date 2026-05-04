@@ -10,7 +10,7 @@
 <link rel="icon" href="/icon-192.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="/icon-192.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:ital,wght@0,300;0,400;0,500;0,700;1,300&family=Ubuntu+Mono:wght@400;700&display=swap" rel="stylesheet" />
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
@@ -23,18 +23,21 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg:        #0d0d0d;
-    --bg2:       #141414;
-    --bg3:       #1c1c1c;
-    --border:    #5e5e5e;
-    --border-strong: #9a9a9a;
-    --text:      #e8e8e3;
-    --text2:     #888880;
-    --text3:     #4a4a45;
-    --accent:    #a3e635;
-    --accent-dim:rgba(163,230,53,0.12);
-    --font:      'DM Sans', sans-serif;
-    --mono:      'DM Mono', monospace;
+    --bg:        #300a24;
+    --bg2:       #3e0e2f;
+    --bg3:       #4a1040;
+    --border:    #6e3060;
+    --border-strong: #9e5090;
+    --text:      #eeeeec;
+    --text2:     #d3d7cf;
+    --text3:     #888a85;
+    --accent:    #e95420;
+    --accent-rgb:233,84,32;
+    --accent-dim:rgba(233,84,32,0.15);
+    --on-accent: #ffffff;
+    --is-light:  0;
+    --font:      'Ubuntu', sans-serif;
+    --mono:      'Ubuntu Mono', monospace;
     --radius:    12px;
   }
 
@@ -57,7 +60,7 @@
     min-height: 100vh;
     display: flex; align-items: center; justify-content: center;
     padding: 24px;
-    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(163,230,53,0.04) 0%, transparent 70%);
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(var(--accent-rgb),0.04) 0%, transparent 70%);
   }
   .auth-card { width: 100%; max-width: 400px; }
   .auth-logo {
@@ -81,7 +84,7 @@
   .field input:focus { border-color: var(--accent); }
   .field input::placeholder { color: var(--text3); }
   .btn-primary {
-    width: 100%; background: var(--accent); color: #0d0d0d;
+    width: 100%; background: var(--accent); color: var(--on-accent);
     border: none; border-radius: 8px; padding: 12px;
     font-family: var(--font); font-size: 14px; font-weight: 600;
     cursor: pointer; margin-top: 8px; transition: opacity 0.15s, transform 0.1s;
@@ -102,7 +105,7 @@
     border-radius: 8px; padding: 10px 14px; font-size: 13px; color: #f87171; margin-bottom: 16px;
   }
   .auth-success {
-    background: rgba(163,230,53,0.08); border: 1px solid rgba(163,230,53,0.25);
+    background: rgba(var(--accent-rgb),0.08); border: 1px solid rgba(var(--accent-rgb),0.25);
     border-radius: 8px; padding: 10px 14px; font-size: 13px; color: var(--accent); margin-bottom: 16px;
   }
 
@@ -291,11 +294,11 @@
       0 0 0 1px rgba(255,255,255,0.12);
   }
   .input-box:focus-within {
-    border-color: rgba(163,230,53,0.75);
+    border-color: rgba(var(--accent-rgb),0.75);
     box-shadow:
-      inset 0 0 0 1px rgba(163,230,53,0.14),
-      0 0 0 1px rgba(163,230,53,0.45),
-      0 0 0 3px rgba(163,230,53,0.12);
+      inset 0 0 0 1px rgba(var(--accent-rgb),0.14),
+      0 0 0 1px rgba(var(--accent-rgb),0.45),
+      0 0 0 3px rgba(var(--accent-rgb),0.12);
   }
   .input-box textarea {
     flex: 1; background: none; border: none; outline: none;
@@ -414,8 +417,8 @@
     overflow: hidden;
     box-shadow:
       inset 0 1px 0 rgba(255,255,255,0.08),
-      0 0 0 1px rgba(163,230,53,0.28),
-      0 0 0 2px rgba(163,230,53,0.1);
+      0 0 0 1px rgba(var(--accent-rgb),0.28),
+      0 0 0 2px rgba(var(--accent-rgb),0.1);
   }
   .thinking-block summary,
   .collab-summary {
@@ -463,7 +466,7 @@
     letter-spacing: 0.06em;
   }
   .collab-details-button {
-    border: 2px solid rgba(163,230,53,0.95);
+    border: 2px solid rgba(var(--accent-rgb),0.95);
     border-radius: 999px;
     padding: 2px 7px;
     color: var(--accent);
@@ -477,8 +480,8 @@
     transition: border-color 0.15s, background 0.15s;
   }
   .collab-details-button:hover {
-    border-color: #c8f06b;
-    background: rgba(163,230,53,0.18);
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb),0.18);
   }
   .collab-body {
     border-top: 1px solid var(--border-strong);
@@ -691,7 +694,7 @@
   }
   .nav-logo {
     width: 28px; height: 28px; border-radius: 6px;
-    background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
+    background: var(--accent-dim); border: 1px solid rgba(var(--accent-rgb),0.3);
     display: flex; align-items: center; justify-content: center; margin-bottom: 8px;
   }
   .nav-logo-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -704,7 +707,7 @@
     position: relative;
   }
   .nav-btn:hover { background: var(--bg3); color: var(--text2); border-color: var(--border); }
-  .nav-btn.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(163,230,53,0.35); }
+  .nav-btn.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(var(--accent-rgb),0.35); }
   .nav-btn-tooltip {
     position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
     background: var(--bg3); border: 1px solid var(--border); color: var(--text);
@@ -763,8 +766,8 @@
     border-radius: var(--radius); padding: 10px 12px; transition: border-color 0.25s, box-shadow 0.25s;
   }
   .ctx-box.active {
-    border-color: rgba(163,230,53,0.6);
-    box-shadow: 0 0 0 1px rgba(163,230,53,0.15), 0 0 12px rgba(163,230,53,0.08);
+    border-color: rgba(var(--accent-rgb),0.6);
+    box-shadow: 0 0 0 1px rgba(var(--accent-rgb),0.15), 0 0 12px rgba(var(--accent-rgb),0.08);
   }
   .ctx-box-label {
     font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
@@ -777,7 +780,7 @@
     background: var(--bg3); border: 1px solid var(--border); border-radius: 4px;
     padding: 2px 6px; font-family: var(--mono); font-size: 9px; color: var(--text2);
   }
-  .ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+  .ctx-tag.lit { border-color: rgba(var(--accent-rgb),0.4); color: var(--accent); background: var(--accent-dim); }
 
   /* ── Directory tree ─────────────────────────────────── */
   .dir-tree { font-family: var(--mono); font-size: 11px; }
@@ -817,6 +820,12 @@
     letter-spacing: 0.1em; text-transform: uppercase; color: var(--text3);
   }
   .obs-feed-count { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-left: auto; }
+  .obs-feed-ctrl {
+    font-family: var(--mono); font-size: 9px; color: var(--text3);
+    background: none; border: 1px solid var(--border); border-radius: 3px;
+    padding: 1px 6px; cursor: pointer; flex-shrink: 0;
+  }
+  .obs-feed-ctrl:hover { color: var(--accent); border-color: var(--accent); }
   .obs-feed-body {
     flex: 1; overflow-y: auto; padding: 8px 12px;
     display: flex; flex-direction: column; gap: 6px;
@@ -838,7 +847,7 @@
   .obs-feed-query:hover { opacity: 0.8; }
   .obs-feed-agents { display: flex; flex-wrap: wrap; gap: 4px; }
   .obs-feed-agent-tag {
-    background: var(--accent-dim); border: 1px solid rgba(163,230,53,0.3);
+    background: var(--accent-dim); border: 1px solid rgba(var(--accent-rgb),0.3);
     border-radius: 4px; padding: 1px 6px;
     font-family: var(--mono); font-size: 9px; color: var(--accent);
   }
@@ -878,7 +887,7 @@
     cursor: pointer; transition: all 0.15s;
   }
   .ws-tab:hover { border-color: var(--border); color: var(--text2); }
-  .ws-tab.active { background: var(--accent-dim); border-color: rgba(163,230,53,0.35); color: var(--accent); }
+  .ws-tab.active { background: var(--accent-dim); border-color: rgba(var(--accent-rgb),0.35); color: var(--accent); }
   .ws-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
   .ws-content { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; }
 
@@ -898,7 +907,7 @@
   .ws-textarea:focus { border-color: var(--accent); }
   .ws-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
   .ws-btn {
-    background: var(--accent); color: #0d0d0d; border: none; border-radius: 7px;
+    background: var(--accent); color: var(--on-accent); border: none; border-radius: 7px;
     padding: 7px 16px; font-family: var(--font); font-size: 12px; font-weight: 600;
     cursor: pointer; transition: opacity 0.15s;
   }
@@ -933,7 +942,7 @@
     cursor: pointer; transition: border-color 0.12s;
   }
   .ws-file-item:hover { border-color: var(--border-strong); }
-  .ws-file-item.selected { border-color: rgba(163,230,53,0.5); background: var(--accent-dim); }
+  .ws-file-item.selected { border-color: rgba(var(--accent-rgb),0.5); background: var(--accent-dim); }
   .ws-file-icon { font-family: var(--mono); font-size: 10px; color: var(--text3); width: 14px; text-align: center; flex-shrink: 0; }
   .ws-file-name { font-family: var(--mono); font-size: 12px; color: var(--text2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ws-file-name.special { color: var(--accent); }
@@ -954,7 +963,7 @@
     background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
     padding: 12px 14px; margin-bottom: 8px; transition: border-color 0.15s;
   }
-  .ws-ctx-rule.active-rule { border-color: rgba(163,230,53,0.4); }
+  .ws-ctx-rule.active-rule { border-color: rgba(var(--accent-rgb),0.4); }
   .ws-ctx-rule-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
   .ws-ctx-rule-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text2); flex: 1; }
   .ws-toggle {
@@ -974,7 +983,7 @@
     font-family: var(--mono); font-size: 9px; background: var(--bg3);
     border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; color: var(--text3);
   }
-  .ws-ctx-tag.lit { border-color: rgba(163,230,53,0.4); color: var(--accent); background: var(--accent-dim); }
+  .ws-ctx-tag.lit { border-color: rgba(var(--accent-rgb),0.4); color: var(--accent); background: var(--accent-dim); }
 
   /* Clickable ctx item buttons */
   .ws-ctx-tag-btn {
@@ -983,9 +992,9 @@
     color: var(--text3); cursor: pointer; display: inline-flex; align-items: center; gap: 3px;
     transition: border-color 0.12s, color 0.12s, background 0.12s; white-space: nowrap;
   }
-  .ws-ctx-tag-btn:hover { border-color: rgba(163,230,53,0.5); color: var(--text); background: var(--bg2); }
-  .ws-ctx-tag-btn.lit { border-color: rgba(163,230,53,0.35); color: var(--accent); background: var(--accent-dim); }
-  .ws-ctx-tag-btn.selected { border-color: var(--accent); background: rgba(163,230,53,0.18); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .ws-ctx-tag-btn:hover { border-color: rgba(var(--accent-rgb),0.5); color: var(--text); background: var(--bg2); }
+  .ws-ctx-tag-btn.lit { border-color: rgba(var(--accent-rgb),0.35); color: var(--accent); background: var(--accent-dim); }
+  .ws-ctx-tag-btn.selected { border-color: var(--accent); background: rgba(var(--accent-rgb),0.18); color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
   .ws-ctx-tag-remove {
     font-size: 11px; line-height: 1; opacity: 0; transition: opacity 0.12s, color 0.12s;
     padding: 0 1px; margin-left: 1px;
@@ -1023,7 +1032,7 @@
     position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
     cursor: ew-resize; z-index: 1; border-radius: 0;
   }
-  .item-panel-resize:hover { background: rgba(163,230,53,0.2); }
+  .item-panel-resize:hover { background: rgba(var(--accent-rgb),0.2); }
   .item-panel-header {
     display: flex; align-items: center; gap: 8px; padding: 13px 16px;
     border-bottom: 1px solid var(--border); flex-shrink: 0;
@@ -1045,6 +1054,71 @@
   }
   .item-panel-row { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .item-panel-autosave { font-family: var(--mono); font-size: 9px; color: var(--text3); margin-left: auto; }
+
+  /* ── File editor: edit/preview tabs ───────────────────── */
+  .file-editor-tabs {
+    display: flex; gap: 2px; margin-bottom: 8px; flex-shrink: 0;
+  }
+  .file-editor-tab {
+    background: none; border: 1px solid transparent; border-radius: 6px;
+    padding: 4px 14px; font-family: var(--mono); font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--text3);
+    cursor: pointer; transition: all 0.15s;
+  }
+  .file-editor-tab:hover { border-color: var(--border); color: var(--text2); }
+  .file-editor-tab.active { background: var(--accent-dim); border-color: rgba(var(--accent-rgb),0.35); color: var(--accent); }
+  .file-preview {
+    flex: 1; min-height: 0; overflow-y: auto;
+    padding: 16px 20px;
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  }
+
+  /* ── Font size control ─────────────────────────────────── */
+  .fontsize-ctrl {
+    display: flex; align-items: center; justify-content: center; gap: 4px;
+    width: 100%; padding: 4px 6px; flex-shrink: 0;
+  }
+  .fontsize-btn {
+    border-radius: 4px; background: none; border: 1px solid var(--border);
+    color: var(--text3); font-family: var(--mono); font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: color 0.12s, border-color 0.12s; line-height: 1; padding: 1px 5px;
+  }
+  .fontsize-btn:hover { color: var(--accent); border-color: var(--accent); }
+  .fontsize-btn.active { color: var(--accent); border-color: rgba(var(--accent-rgb),0.4); background: var(--accent-dim); }
+  .fontsize-btn-sm { font-size: 11px; }
+  .fontsize-btn-lg { font-size: 16px; }
+
+  /* ── Theme picker ──────────────────────────────────────── */
+  .theme-picker {
+    position: absolute; left: calc(100% + 8px); bottom: 0;
+    width: 190px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px; z-index: 300;
+    display: flex; flex-direction: column; gap: 2px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .theme-picker-title {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text3);
+    padding: 4px 6px 6px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+  }
+  .theme-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; border: none; border-radius: 5px;
+    background: none; cursor: pointer; color: var(--text2);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.04em;
+    transition: background 0.1s, color 0.1s; width: 100%; text-align: left;
+  }
+  .theme-item:hover { background: var(--bg3); color: var(--text); }
+  .theme-item.selected { background: var(--accent-dim); color: var(--accent); }
+  .theme-swatch {
+    width: 14px; height: 14px; border-radius: 3px; border: 2px solid; flex-shrink: 0;
+  }
+  .theme-label { flex: 1; }
+  .theme-dot {
+    width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-left: auto;
+  }
+  .nav-spacer { flex: 1; }
 
 </style>
 </head>
@@ -1499,7 +1573,7 @@ function Message({ msg, isStreaming, activeAgent }) {
           Get a free key at <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" style={{color:"#f87171"}}>openrouter.ai/keys</a>, update your <code>.env</code>, and restart the server.
         </div>
       ) : isRateLimitError(msg.content) ? (
-        <div className="error-banner" style={{borderColor:"rgba(163,230,53,0.2)", background:"rgba(163,230,53,0.05)", color:"var(--text2)"}}>
+        <div className="error-banner" style={{borderColor:"rgba(var(--accent-rgb),0.2)", background:"rgba(var(--accent-rgb),0.05)", color:"var(--text2)"}}>
           <strong style={{color:"var(--accent)"}}>Free models are busy right now</strong>
           All available free models hit their rate limit. Wait a few seconds and send your message again.
         </div>
@@ -2142,25 +2216,30 @@ function applyMermaidHighlight(diagramStr, activeAgent) {
   }
 
   if (!nodeId) return clean;
-  return clean.trimEnd() + `\n  style ${nodeId} fill:#a3e635,color:#0d0d0d,stroke:#a3e635,stroke-width:2px`;
+  const s = getComputedStyle(document.documentElement);
+  const ac = s.getPropertyValue("--accent").trim();
+  const oa = s.getPropertyValue("--on-accent").trim();
+  return clean.trimEnd() + `\n  style ${nodeId} fill:${ac},color:${oa},stroke:${ac},stroke-width:2px`;
 }
 
-function useMermaid(containerRef, diagramStr) {
+function useMermaid(containerRef, diagramStr, themeKey) {
   React.useEffect(() => {
     if (!containerRef.current || !window.mermaid) return;
+    const cs = getComputedStyle(document.documentElement);
+    const cv = v => cs.getPropertyValue(v).trim();
     window.mermaid.initialize({
       startOnLoad: false,
-      theme: "dark",
+      theme: cv("--is-light") === "1" ? "default" : "dark",
       themeVariables: {
-        background: "#141414",
-        primaryColor: "#1c1c1c",
-        primaryTextColor: "#e8e8e3",
-        primaryBorderColor: "#5e5e5e",
-        lineColor: "#5e5e5e",
-        nodeBorder: "#5e5e5e",
-        clusterBkg: "#141414",
-        titleColor: "#e8e8e3",
-        edgeLabelBackground: "#0d0d0d",
+        background:          cv("--bg2"),
+        primaryColor:        cv("--bg3"),
+        primaryTextColor:    cv("--text"),
+        primaryBorderColor:  cv("--border"),
+        lineColor:           cv("--border"),
+        nodeBorder:          cv("--border"),
+        clusterBkg:          cv("--bg2"),
+        titleColor:          cv("--text"),
+        edgeLabelBackground: cv("--bg"),
       }
     });
     const id = "mermaid-obs-" + Date.now();
@@ -2168,14 +2247,14 @@ function useMermaid(containerRef, diagramStr) {
     window.mermaid.render(id, stripMermaidComments(diagramStr)).then(({ svg }) => {
       if (containerRef.current) containerRef.current.innerHTML = svg;
     }).catch(() => {});
-  }, [diagramStr]);
+  }, [diagramStr, themeKey]);
 }
 
-function AgentDiagramPanel({ activeAgent, workspaceData }) {
+function AgentDiagramPanel({ activeAgent, workspaceData, theme }) {
   const containerRef = React.useRef(null);
   const baseDiagram = workspaceData?.mermaidDiagram ?? "";
   const diagram = applyMermaidHighlight(baseDiagram, activeAgent);
-  useMermaid(containerRef, diagram);
+  useMermaid(containerRef, diagram, theme);
   return (
     <div className="obs-panel-body">
       {!workspaceData
@@ -2403,7 +2482,7 @@ function useResizablePanels(defaultPercents) {
   return { widths, containerRef, onMouseDown, draggingIdx };
 }
 
-function ContextObservatory({ workspaceData }) {
+function ContextObservatory({ workspaceData, theme }) {
   const { activeAgent, connected, contextLog } = useMonitorSSE();
   const { widths, containerRef, onMouseDown, draggingIdx } = useResizablePanels([30, 40, 30]);
 
@@ -2429,7 +2508,7 @@ function ContextObservatory({ workspaceData }) {
             Agent Architecture
             {activeAgent && <span style={{ marginLeft: "auto", color: "var(--accent)", fontSize: 9 }}>{activeAgent}</span>}
           </div>
-          <AgentDiagramPanel activeAgent={activeAgent} workspaceData={workspaceData} />
+          <AgentDiagramPanel activeAgent={activeAgent} workspaceData={workspaceData} theme={theme} />
         </div>
 
         <div
@@ -2487,6 +2566,11 @@ function ContextFeedDock({ contextLog }) {
     });
   }
 
+  const feedIndices = contextLog.reduce((acc, e, i) => { if (e.type === "feed") acc.push(i); return acc; }, []);
+
+  function collapseAll() { setCollapsed(new Set(feedIndices)); }
+  function expandAll()   { setCollapsed(new Set()); }
+
   function onResizeStart(e) {
     e.preventDefault();
     const startY = e.clientY;
@@ -2519,6 +2603,10 @@ function ContextFeedDock({ contextLog }) {
         <span className="obs-feed-count">
           {turnCount} turn{turnCount !== 1 ? "s" : ""}
         </span>
+        {feedIndices.length > 0 && <>
+          <button className="obs-feed-ctrl" onClick={collapseAll} title="Collapse all turns">▶▶</button>
+          <button className="obs-feed-ctrl" onClick={expandAll}   title="Expand all turns">▾▾</button>
+        </>}
       </div>
       <div className="obs-feed-body" ref={bodyRef}>
         {contextLog.length === 0 ? (
@@ -2660,7 +2748,7 @@ function formatBytesWs(n) {
 
 // ── WorkspacePanel ────────────────────────────────────────────────────
 
-function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
+function WorkspacePanel({ onWorkspaceUpdate, workspaceData, theme }) {
   const [tab, setTab] = React.useState("directory");
 
   // Architecture
@@ -2681,6 +2769,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   // Item slide-in panel
   const [itemPanel, setItemPanel] = React.useState(null); // { ruleId, ruleLabel, item }
+  const [itemPanelTab, setItemPanelTab] = React.useState("edit");
   const [itemContent, setItemContent] = React.useState("");
   const [itemLoading, setItemLoading] = React.useState(false);
   const [itemSaved, setItemSaved] = React.useState(false);
@@ -2699,6 +2788,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   const [fileLoading, setFileLoading] = React.useState(false);
   const [fileSaving, setFileSaving] = React.useState(false);
   const [fileSaved, setFileSaved] = React.useState(false);
+  const [fileEditorTab, setFileEditorTab] = React.useState("edit");
   const [dirLoading, setDirLoading] = React.useState(false);
   const [newDirName, setNewDirName] = React.useState("");
   const [creatingDir, setCreatingDir] = React.useState(false);
@@ -2739,9 +2829,11 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   React.useEffect(() => {
     if (tab !== "architecture" || !mermaidCode || !mermaidPreviewRef.current || !window.mermaid) return;
     const id = "mermaid-ws-" + Date.now();
-    window.mermaid.initialize({ startOnLoad: false, theme: "dark", themeVariables: {
-      background: "#141414", primaryColor: "#1c1c1c", primaryTextColor: "#e8e8e3",
-      primaryBorderColor: "#5e5e5e", lineColor: "#5e5e5e",
+    const cs = getComputedStyle(document.documentElement);
+    const cv = v => cs.getPropertyValue(v).trim();
+    window.mermaid.initialize({ startOnLoad: false, theme: cv("--is-light") === "1" ? "default" : "dark", themeVariables: {
+      background: cv("--bg2"), primaryColor: cv("--bg3"), primaryTextColor: cv("--text"),
+      primaryBorderColor: cv("--border"), lineColor: cv("--border"),
     }});
     // Strip %% comments — Mermaid 10.9.x parse regression
     window.mermaid.render(id, stripMermaidComments(mermaidCode)).then(({ svg }) => {
@@ -2750,7 +2842,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
       if (mermaidPreviewRef.current) mermaidPreviewRef.current.innerHTML =
         '<span style="color:var(--text3);font-size:11px;font-family:var(--mono)">Syntax error — check your diagram</span>';
     });
-  }, [mermaidCode, tab]);
+  }, [mermaidCode, tab, theme]);
 
   // ── Auto-save item panel every 5 s ───────────────────────────────────
   React.useEffect(() => { itemContentRef.current = itemContent; }, [itemContent]);
@@ -2829,6 +2921,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
     const panel = { ruleId: rule.id, ruleLabel: rule.label, item };
     itemPanelRef.current = panel;
     setItemPanel(panel);
+    setItemPanelTab("edit");
     setItemContent(""); itemContentRef.current = "";
     setItemIsDefault(false);
     setItemLoading(true);
@@ -2961,7 +3054,7 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
 
   async function openFile(file) {
     if (file.is_directory) { navigateInto(file); return; }
-    setSelectedFile(file); setFileLoading(true);
+    setSelectedFile(file); setFileLoading(true); setFileEditorTab("edit");
     try {
       const r = await apiFetchWorkspace(`/api/workspace/files/${file.path}`);
       if (r.ok) { const d = await r.json(); setFileContent(d.content ?? ""); }
@@ -3042,6 +3135,12 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
           <div className="item-panel-resize" onMouseDown={startPanelResize} />
           <div className="item-panel-header">
             <span className="item-panel-title">{itemPanel.ruleLabel} · {itemPanel.item}</span>
+            <div className="file-editor-tabs" style={{marginBottom:0,marginLeft:"auto",marginRight:8}}>
+              {[["edit","Edit"],["preview","Preview"]].map(([id,label]) => (
+                <button key={id} className={`file-editor-tab${itemPanelTab===id?" active":""}`}
+                  onClick={() => setItemPanelTab(id)}>{label}</button>
+              ))}
+            </div>
             <button className="item-panel-close" onClick={() => closeItemPanel(true)}>×</button>
           </div>
           <div className="item-panel-body">
@@ -3055,21 +3154,27 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
                     }
                     {" · injected when category is active"}
                   </div>
-                  <textarea
-                    className="ws-textarea"
-                    style={{ flex:1, minHeight:0, resize:"none" }}
-                    value={itemContent}
-                    onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; isDirtyRef.current = true; if (itemIsDefault) setItemIsDefault(false); }}
-                    placeholder={`No server-side default found for "${itemPanel.item}".\n\nWrite your own definition — it will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
-                    spellCheck={false}
-                    autoFocus
-                  />
-                  <div className="item-panel-row">
-                    <button className="ws-btn" style={{ padding:"5px 12px", fontSize:11 }}
-                      onClick={() => doSaveItem(itemPanel, itemContentRef.current)}>Save</button>
-                    <span className={`ws-save-status${itemSaved ? "" : " hidden"}`}>Saved</span>
-                    <span className="item-panel-autosave">auto-saves every 5s</span>
-                  </div>
+                  {itemPanelTab === "edit"
+                    ? <>
+                        <textarea
+                          className="ws-textarea"
+                          style={{ flex:1, minHeight:0, resize:"none" }}
+                          value={itemContent}
+                          onChange={e => { const v = e.target.value; setItemContent(v); itemContentRef.current = v; isDirtyRef.current = true; if (itemIsDefault) setItemIsDefault(false); }}
+                          placeholder={`No server-side default found for "${itemPanel.item}".\n\nWrite your own definition — it will be injected into agent prompts when the ${itemPanel.ruleLabel} category is active.`}
+                          spellCheck={false}
+                          autoFocus
+                        />
+                        <div className="item-panel-row">
+                          <button className="ws-btn" style={{ padding:"5px 12px", fontSize:11 }}
+                            onClick={() => doSaveItem(itemPanel, itemContentRef.current)}>Save</button>
+                          <span className={`ws-save-status${itemSaved ? "" : " hidden"}`}>Saved</span>
+                          <span className="item-panel-autosave">auto-saves every 5s</span>
+                        </div>
+                      </>
+                    : <div className="markdown file-preview"
+                        dangerouslySetInnerHTML={{ __html: window.marked?.parse(itemContent) ?? itemContent }} />
+                  }
                 </>
             }
           </div>
@@ -3272,26 +3377,45 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
               <div style={{flex:1,minWidth:0,display:"flex",flexDirection:"column"}}>
                 {!selectedFile
                   ? <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Select a file to edit</div>
-                  : <>
-                      <div className="ws-section-title" style={{marginBottom:8}}>
-                        <span className="ws-section-title-dot"/>{selectedFile.path}
-                      </div>
-                      {fileLoading
-                        ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
-                        : <>
-                            <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
-                              value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
-                            <div className="ws-actions" style={{marginTop:10}}>
-                              <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
-                              <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
-                              {!PROTECTED_NAMES.includes(selectedFile.name) && (
-                                <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
-                                  onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
-                              )}
+                  : (() => {
+                      const isMd = selectedFile.name.endsWith(".md");
+                      return <>
+                        <div style={{display:"flex",alignItems:"center",marginBottom:8,gap:8,flexShrink:0}}>
+                          <div className="ws-section-title" style={{marginBottom:0}}>
+                            <span className="ws-section-title-dot"/>{selectedFile.path}
+                          </div>
+                          {isMd && (
+                            <div className="file-editor-tabs" style={{marginLeft:"auto",marginBottom:0}}>
+                              {[["edit","Edit"],["preview","Preview"]].map(([id,label]) => (
+                                <button key={id} className={`file-editor-tab${fileEditorTab===id?" active":""}`}
+                                  onClick={() => setFileEditorTab(id)}>{label}</button>
+                              ))}
                             </div>
-                          </>
-                      }
-                    </>
+                          )}
+                        </div>
+                        {fileLoading
+                          ? <div style={{color:"var(--text3)",fontFamily:"var(--mono)",fontSize:12}}>Loading…</div>
+                          : <>
+                              {(!isMd || fileEditorTab === "edit")
+                                ? <textarea className="ws-textarea" style={{flex:1,minHeight:300,resize:"none"}}
+                                    value={fileContent} onChange={e => setFileContent(e.target.value)} spellCheck={false} />
+                                : <div className="markdown file-preview"
+                                    dangerouslySetInnerHTML={{ __html: window.marked?.parse(fileContent) ?? fileContent }} />
+                              }
+                              {(!isMd || fileEditorTab === "edit") && (
+                                <div className="ws-actions" style={{marginTop:10}}>
+                                  <button className="ws-btn" onClick={saveFile} disabled={fileSaving}>{fileSaving ? "Saving…" : "Save"}</button>
+                                  <span className={`ws-save-status${fileSaved ? "" : " hidden"}`}>Saved</span>
+                                  {!PROTECTED_NAMES.includes(selectedFile.name) && (
+                                    <button className="ws-btn-ghost danger" style={{marginLeft:"auto"}}
+                                      onClick={e => deleteFile(selectedFile, {stopPropagation:()=>{},...e})}>Delete</button>
+                                  )}
+                                </div>
+                              )}
+                            </>
+                        }
+                      </>;
+                    })()
                 }
               </div>
             </div>
@@ -3303,7 +3427,145 @@ function WorkspacePanel({ onWorkspaceUpdate, workspaceData }) {
   );
 }
 
-function LeftNav({ page, onNavigate }) {
+// ── Font size control ─────────────────────────────────────────────────────────
+const FONT_MIN = 12, FONT_MAX = 20;
+
+function applyFontSize(px) {
+  document.documentElement.style.fontSize = px + "px";
+}
+
+const FONT_NORMAL = 15, FONT_LARGE = 18;
+
+function FontSizeControl({ fontSize, setFontSize }) {
+  return (
+    <div className="fontsize-ctrl" title="Font size">
+      <button
+        className={`fontsize-btn fontsize-btn-sm${fontSize <= FONT_NORMAL ? " active" : ""}`}
+        onClick={() => setFontSize(FONT_NORMAL)}
+        aria-label="Normal font size"
+      >A</button>
+      <button
+        className={`fontsize-btn fontsize-btn-lg${fontSize >= FONT_LARGE ? " active" : ""}`}
+        onClick={() => setFontSize(FONT_LARGE)}
+        aria-label="Large font size"
+      >A</button>
+    </div>
+  );
+}
+
+// ── Ubuntu terminal color themes ─────────────────────────────────────────────
+const THEMES = {
+  "ubuntu": {
+    label: "Ubuntu",       swatch: "#300a24", dot: "#e95420",
+    vars: { "--bg":"#300a24","--bg2":"#3e0e2f","--bg3":"#4a1040",
+      "--border":"#6e3060","--border-strong":"#9e5090",
+      "--text":"#eeeeec","--text2":"#d3d7cf","--text3":"#888a85",
+      "--accent":"#e95420","--accent-rgb":"233,84,32",
+      "--accent-dim":"rgba(233,84,32,0.15)","--on-accent":"#ffffff","--is-light":"0" }
+  },
+  "tango-dark": {
+    label: "Tango Dark",   swatch: "#2e3436", dot: "#8ae234",
+    vars: { "--bg":"#2e3436","--bg2":"#3a4244","--bg3":"#464e50",
+      "--border":"#555753","--border-strong":"#888a85",
+      "--text":"#eeeeec","--text2":"#d3d7cf","--text3":"#888a85",
+      "--accent":"#8ae234","--accent-rgb":"138,226,52",
+      "--accent-dim":"rgba(138,226,52,0.15)","--on-accent":"#1a2a10","--is-light":"0" }
+  },
+  "linux-console": {
+    label: "Linux Console", swatch: "#000000", dot: "#00aa00",
+    vars: { "--bg":"#000000","--bg2":"#0a0a0a","--bg3":"#141414",
+      "--border":"#2a2a2a","--border-strong":"#555555",
+      "--text":"#aaaaaa","--text2":"#777777","--text3":"#444444",
+      "--accent":"#00aa00","--accent-rgb":"0,170,0",
+      "--accent-dim":"rgba(0,170,0,0.15)","--on-accent":"#000000","--is-light":"0" }
+  },
+  "solarized-dark": {
+    label: "Solarized Dark", swatch: "#002b36", dot: "#268bd2",
+    vars: { "--bg":"#002b36","--bg2":"#073642","--bg3":"#0d3d4a",
+      "--border":"#586e75","--border-strong":"#657b83",
+      "--text":"#839496","--text2":"#657b83","--text3":"#4a5e65",
+      "--accent":"#268bd2","--accent-rgb":"38,139,210",
+      "--accent-dim":"rgba(38,139,210,0.15)","--on-accent":"#fdf6e3","--is-light":"0" }
+  },
+  "solarized-light": {
+    label: "Solarized Light", swatch: "#fdf6e3", dot: "#268bd2",
+    vars: { "--bg":"#fdf6e3","--bg2":"#eee8d5","--bg3":"#e0dac8",
+      "--border":"#93a1a1","--border-strong":"#839496",
+      "--text":"#073642","--text2":"#657b83","--text3":"#93a1a1",
+      "--accent":"#268bd2","--accent-rgb":"38,139,210",
+      "--accent-dim":"rgba(38,139,210,0.12)","--on-accent":"#fdf6e3","--is-light":"1" }
+  },
+  "tango-light": {
+    label: "Tango Light",  swatch: "#eeeeec", dot: "#3465a4",
+    vars: { "--bg":"#eeeeec","--bg2":"#d3d7cf","--bg3":"#babdb6",
+      "--border":"#888a85","--border-strong":"#555753",
+      "--text":"#2e3436","--text2":"#555753","--text3":"#888a85",
+      "--accent":"#3465a4","--accent-rgb":"52,101,164",
+      "--accent-dim":"rgba(52,101,164,0.12)","--on-accent":"#eeeeec","--is-light":"1" }
+  },
+};
+
+function applyTheme(key) {
+  const t = THEMES[key]; if (!t) return;
+  const root = document.documentElement;
+  Object.entries(t.vars).forEach(([k, v]) => root.style.setProperty(k, v));
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t.vars["--bg"]);
+}
+
+function PaletteIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M12 2a10 10 0 100 20c1.1 0 2-.9 2-2v-.5c0-.5.2-1 .6-1.3.3-.3.4-.8.2-1.2-.3-.8-1-1-1.8-1H12a5 5 0 110-10z" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="8.5"  cy="7.5"  r="1" fill="currentColor" stroke="none"/>
+      <circle cx="12"   cy="6"    r="1" fill="currentColor" stroke="none"/>
+      <circle cx="15.5" cy="7.5"  r="1" fill="currentColor" stroke="none"/>
+      <circle cx="16.5" cy="11"   r="1" fill="currentColor" stroke="none"/>
+    </svg>
+  );
+}
+
+function ThemePicker({ theme, setTheme }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function onOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", onOut);
+    return () => document.removeEventListener("mousedown", onOut);
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative", width: "100%" }}>
+      <button
+        className={`nav-btn${open ? " active" : ""}`}
+        onClick={() => setOpen(o => !o)}
+        aria-label="Color theme"
+      >
+        <PaletteIcon />
+        <span className="nav-btn-tooltip">Theme</span>
+      </button>
+      {open && (
+        <div className="theme-picker">
+          <div className="theme-picker-title">Terminal Theme</div>
+          {Object.entries(THEMES).map(([key, t]) => (
+            <button
+              key={key}
+              className={`theme-item${theme === key ? " selected" : ""}`}
+              onClick={() => { setTheme(key); setOpen(false); }}
+            >
+              <span className="theme-swatch" style={{ background: t.swatch, borderColor: t.dot }} />
+              <span className="theme-label">{t.label}</span>
+              <span className="theme-dot"   style={{ background: t.dot }} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeftNav({ page, onNavigate, theme, setTheme, fontSize, setFontSize }) {
   return (
     <nav className="left-nav" aria-label="Main navigation">
       <div className="nav-logo"><span className="nav-logo-dot" /></div>
@@ -3331,6 +3593,9 @@ function LeftNav({ page, onNavigate }) {
         <TelescopeIcon />
         <span className="nav-btn-tooltip">Observatory</span>
       </button>
+      <div className="nav-spacer" />
+      <FontSizeControl fontSize={fontSize} setFontSize={setFontSize} />
+      <ThemePicker theme={theme} setTheme={setTheme} />
     </nav>
   );
 }
@@ -3341,8 +3606,25 @@ function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [page, setPage] = useState("chat");
   const [workspaceData, setWorkspaceData] = useState(null);
+  const [theme, setThemeState] = useState(() => localStorage.getItem("mp-theme") ?? "ubuntu");
+  const [fontSize, setFontSizeState] = useState(() => parseInt(localStorage.getItem("mp-fontsize") ?? String(FONT_NORMAL)));
   const sessionRef = React.useRef(null);
   sessionRef.current = session;
+
+  function setTheme(key) {
+    setThemeState(key);
+    localStorage.setItem("mp-theme", key);
+    applyTheme(key);
+  }
+
+  function setFontSize(px) {
+    setFontSizeState(px);
+    localStorage.setItem("mp-fontsize", String(px));
+    applyFontSize(px);
+  }
+
+  // Apply theme + font size on mount
+  useEffect(() => { applyTheme(theme); applyFontSize(fontSize); }, []);
 
   async function loadWorkspaceData(sess) {
     const token = sess?.access_token;
@@ -3400,16 +3682,16 @@ function App() {
 
   return (
     <div className="app-shell">
-      <LeftNav page={page} onNavigate={setPage} />
+      <LeftNav page={page} onNavigate={setPage} theme={theme} setTheme={setTheme} fontSize={fontSize} setFontSize={setFontSize} />
       <div className="main-content">
         <div className="page-slot" style={{ display: page === "chat" ? "flex" : "none" }}>
           <ChatScreen session={session} onLogout={() => setSession(null)} />
         </div>
         <div className="page-slot" style={{ display: page === "workspace" ? "flex" : "none" }}>
-          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} workspaceData={workspaceData} />
+          <WorkspacePanel onWorkspaceUpdate={handleWorkspaceUpdate} workspaceData={workspaceData} theme={theme} />
         </div>
         <div className="page-slot" style={{ display: page === "observatory" ? "flex" : "none" }}>
-          <ContextObservatory workspaceData={workspaceData} />
+          <ContextObservatory workspaceData={workspaceData} theme={theme} />
         </div>
       </div>
     </div>
@@ -3420,6 +3702,24 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 
 <script>
+  // Apply saved theme immediately to avoid flash of default colors
+  (function() {
+    const saved = localStorage.getItem("mp-theme") ?? "ubuntu";
+    const themes = {
+      "ubuntu":         { "--bg":"#300a24","--bg2":"#3e0e2f","--bg3":"#4a1040","--border":"#6e3060","--border-strong":"#9e5090","--text":"#eeeeec","--text2":"#d3d7cf","--text3":"#888a85","--accent":"#e95420","--accent-rgb":"233,84,32","--accent-dim":"rgba(233,84,32,0.15)","--on-accent":"#ffffff","--is-light":"0" },
+      "tango-dark":     { "--bg":"#2e3436","--bg2":"#3a4244","--bg3":"#464e50","--border":"#555753","--border-strong":"#888a85","--text":"#eeeeec","--text2":"#d3d7cf","--text3":"#888a85","--accent":"#8ae234","--accent-rgb":"138,226,52","--accent-dim":"rgba(138,226,52,0.15)","--on-accent":"#1a2a10","--is-light":"0" },
+      "linux-console":  { "--bg":"#000000","--bg2":"#0a0a0a","--bg3":"#141414","--border":"#2a2a2a","--border-strong":"#555555","--text":"#aaaaaa","--text2":"#777777","--text3":"#444444","--accent":"#00aa00","--accent-rgb":"0,170,0","--accent-dim":"rgba(0,170,0,0.15)","--on-accent":"#000000","--is-light":"0" },
+      "solarized-dark": { "--bg":"#002b36","--bg2":"#073642","--bg3":"#0d3d4a","--border":"#586e75","--border-strong":"#657b83","--text":"#839496","--text2":"#657b83","--text3":"#4a5e65","--accent":"#268bd2","--accent-rgb":"38,139,210","--accent-dim":"rgba(38,139,210,0.15)","--on-accent":"#fdf6e3","--is-light":"0" },
+      "solarized-light":{ "--bg":"#fdf6e3","--bg2":"#eee8d5","--bg3":"#e0dac8","--border":"#93a1a1","--border-strong":"#839496","--text":"#073642","--text2":"#657b83","--text3":"#93a1a1","--accent":"#268bd2","--accent-rgb":"38,139,210","--accent-dim":"rgba(38,139,210,0.12)","--on-accent":"#fdf6e3","--is-light":"1" },
+      "tango-light":    { "--bg":"#eeeeec","--bg2":"#d3d7cf","--bg3":"#babdb6","--border":"#888a85","--border-strong":"#555753","--text":"#2e3436","--text2":"#555753","--text3":"#888a85","--accent":"#3465a4","--accent-rgb":"52,101,164","--accent-dim":"rgba(52,101,164,0.12)","--on-accent":"#eeeeec","--is-light":"1" },
+    };
+    const vars = themes[saved] ?? themes["ubuntu"];
+    const root = document.documentElement;
+    Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", vars["--bg"]);
+    const fs = parseInt(localStorage.getItem("mp-fontsize") ?? "15");
+    document.documentElement.style.fontSize = fs + "px";
+  })();
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
